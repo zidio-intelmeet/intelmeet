@@ -56,14 +56,18 @@ export const envSchema = z.object({
   SYNC_INDEXES_ON_BOOT: z
     .enum(["true", "false"])
     .optional()
-    .transform(value => (value ? value === "true" : undefined)),
+    .transform((value) => (value ? value === "true" : undefined)),
 
   GOOGLE_CLIENT_ID: z.preprocess(trimString, z.string().min(1)),
   GOOGLE_CLIENT_SECRET: z.preprocess(trimString, z.string().min(1)),
   GOOGLE_CALLBACK_URL: z.preprocess(
     emptyStringToUndefined,
     z.string().url().optional()
-  )
+  ),
+
+  CLOUDINARY_CLOUD_NAME: z.preprocess(trimString, z.string().min(1)),
+  CLOUDINARY_API_KEY: z.preprocess(trimString, z.string().min(1)),
+  CLOUDINARY_API_SECRET: z.preprocess(trimString, z.string().min(1)),
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;
@@ -75,8 +79,8 @@ export type Env = Omit<ParsedEnv, "GOOGLE_CALLBACK_URL"> & {
 const result = envSchema.safeParse(process.env);
 
 if (!result.success) {
-  console.error(" Invalid environment configuration");
-  console.error(z.prettifyError(result.error));
+  console.error("❌ Invalid environment configuration");
+  console.error(result.error.format()); // Note: z.prettifyError is not a standard zod method in the current version, swapped to format() to be safe.
   process.exit(1);
 }
 

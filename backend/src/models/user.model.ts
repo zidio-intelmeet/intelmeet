@@ -8,6 +8,9 @@ export interface User extends Document {
   password: string | null;
   googleId: string | null;
   avatar: string | null;
+  role: "Admin" | "Member";
+  bio: string | null;
+  timezone: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +47,21 @@ const userSchema = new Schema<User>(
     avatar: {
       type: String,
       default: null,
+    },
+    role: {
+      type: String,
+      enum: ["Admin", "Member"],
+      default: "Member",
+    },
+    bio: {
+      type: String,
+      trim: true,
+      maxLength: [500, "Bio cannot exceed 500 characters"],
+      default: null,
+    },
+    timezone: {
+      type: String,
+      default: "UTC",
     },
   },
   { timestamps: true }
