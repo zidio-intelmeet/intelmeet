@@ -7,6 +7,7 @@ import { verifyRefreshToken, generateTokenPair } from "../utils/jwt";
 import { AsyncHandler } from "../utils/async-handler";
 import env from "../configs/env";
 import { normalizeTenantId } from "../middlewares/tenant.middleware";
+import User from "../models/user.model"; // <-- Added User model import
 
 const registerSchema = z.object({
   name: z.string().min(2),
@@ -197,4 +198,51 @@ export const googleCallback = AsyncHandler(
 
 export const getMe = AsyncHandler(async (req: Request, res: Response) => {
   return ApiResponse.ok(res, "User fetched", req.user);
+});
+
+// --- NEW PROFILE UPDATE CONTROLLER ---
+export const updateProfile = AsyncHandler(async (req: Request, res: Response) => {
+  // 1. Extract text fields from the request body
+  const { name, bio, timezone } = req.body;
+
+  // 2. Build the update object dynamically
+  const updateData: Partial<typeof User.prototype> = {};
+  if (name) updateData.name = name;
+  if (bio !== undefined) updateData.bio = bio; 
+  if (timezone) updateData.timezone = timezone;
+
+  // 3. Handle the uploaded avatar URL from Cloudinary
+  if (req.file) {
+    updateData.avatar = req.file.path; 
+  }
+
+  // 4. Get identifiers from your requireAuth middleware
+  const userId = req.user?.id;
+  const tenantId = req.tenantId;
+
+  if (!userId || !tenantId) {
+    throw ApiError.unauthorized("Authentication required");
+  }
+
+  // 5. Update the user in the database
+  const updatedUser = await User.findOneAndUpdate(
+    { _id: userId, tenantId: tenantId }, 
+    { $set: updateData },
+    { new: true, runValidators: true } 
+  );
+
+  if (!updatedUser) {
+    throw ApiError.notFound("User not found");
+  }
+
+  // 6. Send back standardized API response using your ApiResponse wrapper
+  return ApiResponse.ok(res, "Profile updated successfully", {
+    id: updatedUser._id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    avatar: updatedUser.avatar,
+    bio: updatedUser.bio,
+    timezone: updatedUser.timezone,
+    role: updatedUser.role,
+  });
 });
