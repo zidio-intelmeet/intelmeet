@@ -1,6 +1,14 @@
+<<<<<<< Updated upstream
 import { useState, type DragEvent, type FormEvent } from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+=======
+import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+>>>>>>> Stashed changes
 import { Navbar } from './components/layout/Navbar'
+import { DashboardLayout } from './components/layout/DashboardLayout'
+import { ProtectedRoute } from './components/auth/ProtectedRoute'
+import { CreateOrgModal } from './components/org/CreateOrgModal'
 import { CtaSection } from './sections/CtaSection'
 import { FeaturesSection } from './sections/FeaturesSection'
 import { HeroSection } from './sections/HeroSection'
@@ -10,6 +18,16 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import AuthSuccessPage from './pages/AuthSuccessPage'
+import DashboardPage from './pages/DashboardPage'
+import MeetingsPage from './pages/MeetingsPage'
+import VideoRoom from './pages/VideoRoom'
+import JoinMeeting from './pages/JoinMeeting'
+import ProjectsPage from './pages/ProjectsPage'
+import AnalyticsPage from './pages/AnalyticsPage'
+import ProfilePage from './pages/ProfilePage'
+import { useAuthStore } from './stores/authStore'
+import { apiService } from './services/api'
 
 function HomePage() {
   return (
@@ -29,6 +47,7 @@ function HomePage() {
   )
 }
 
+<<<<<<< Updated upstream
 function AccountPage({ title, description }: { title: string; description: string }) {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)]">
@@ -126,10 +145,38 @@ function SchedulePage() {
 
     setTasks((currentTasks) =>
       currentTasks.map((task) => (task.id === taskId ? { ...task, columnId } : task)),
+=======
+function DashboardWrapper({ children }: { children: React.ReactNode }) {
+  const [showOrgModal, setShowOrgModal] = useState(false)
+  const [orgChecked, setOrgChecked] = useState(false)
+
+  useEffect(() => {
+    const checkOrg = async () => {
+      try {
+        const res = await apiService.getMyOrganization()
+        if (!res.data) setShowOrgModal(true)
+      } catch {
+        setShowOrgModal(true)
+      }
+      setOrgChecked(true)
+    }
+    checkOrg()
+  }, [])
+
+  if (!orgChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <svg className="w-8 h-8 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      </div>
+>>>>>>> Stashed changes
     )
   }
 
   return (
+<<<<<<< Updated upstream
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.18),transparent_28%),linear-gradient(180deg,#fffaf0_0%,#f2fbf4_48%,#ffffff_100%)]">
       <Navbar />
       <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -482,6 +529,20 @@ function SettingsPage() {
         </form>
       </main>
     </div>
+=======
+    <>
+      <CreateOrgModal isOpen={showOrgModal} onCreated={() => setShowOrgModal(false)} />
+      <DashboardLayout>{children}</DashboardLayout>
+    </>
+  )
+}
+
+function ProtectedDashboard({ children }: { children: React.ReactNode }) {
+  return (
+    <ProtectedRoute>
+      <DashboardWrapper>{children}</DashboardWrapper>
+    </ProtectedRoute>
+>>>>>>> Stashed changes
   )
 }
 
@@ -496,22 +557,83 @@ function Layout() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+<<<<<<< Updated upstream
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/meetings" element={<AccountPage title="Meetings" description="Host a new meeting or join an existing IntellMeet session from here." />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/recordings" element={<AccountPage title="Recordings" description="Access meeting recordings, notes, and summaries shared by the admin." />} />
         <Route path="/settings" element={<SettingsPage />} />
+=======
+        <Route path="/auth/success" element={<AuthSuccessPage />} />
+        <Route path="/meetings/:code/join" element={<JoinMeeting />} />
+        <Route path="/dashboard" element={<ProtectedDashboard><DashboardPage /></ProtectedDashboard>} />
+        <Route path="/dashboard/meetings" element={<ProtectedDashboard><MeetingsPage /></ProtectedDashboard>} />
+        <Route 
+          path="/dashboard/meetings/:meetingId/video" 
+          element={
+            <ProtectedRoute>
+              <VideoRoom />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="/dashboard/chat" element={<ProtectedDashboard><PlaceholderPage title="Chat" description="Real-time team chat coming soon." /></ProtectedDashboard>} />
+        <Route path="/dashboard/projects" element={<ProtectedDashboard><ProjectsPage /></ProtectedDashboard>} />
+        <Route path="/dashboard/analytics" element={<ProtectedDashboard><AnalyticsPage /></ProtectedDashboard>} />
+        <Route path="/dashboard/profile" element={<ProtectedDashboard><ProfilePage /></ProtectedDashboard>} />
+>>>>>>> Stashed changes
       </Routes>
     </>
   )
 }
 
+function PlaceholderPage({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+        <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+      </div>
+      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+      <p className="text-slate-500 mt-1 text-sm">{description}</p>
+    </div>
+  )
+}
+
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const setAuth = useAuthStore(s => s.setAuth)
+  const setLoading = useAuthStore(s => s.setLoading)
+  const logout = useAuthStore(s => s.logout)
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const refreshRes = await apiService.refreshToken()
+        const accessToken = refreshRes.data?.accessToken
+        if (accessToken) {
+          apiService.setAccessToken(accessToken)
+          const meRes = await apiService.getMe()
+          if (meRes.data) { setAuth(meRes.data, accessToken); return }
+        }
+      } catch {}
+      logout()
+    }
+    initAuth()
+  }, [setAuth, setLoading, logout])
+
+  return <>{children}</>
+}
+
 function App() {
   return (
     <BrowserRouter>
+<<<<<<< Updated upstream
       <AuthProvider>
         <Layout />
       </AuthProvider>
+=======
+      <AuthInitializer>
+        <Layout />
+      </AuthInitializer>
+>>>>>>> Stashed changes
     </BrowserRouter>
   )
 }
