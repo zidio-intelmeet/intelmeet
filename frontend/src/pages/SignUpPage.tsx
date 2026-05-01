@@ -1,6 +1,87 @@
-import { Link } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/auth'
+
+type SignUpErrors = {
+  firstName?: string
+  email?: string
+  password?: string
+  confirmPassword?: string
+  terms?: string
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isStrongPassword(password: string) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)
+}
 
 export default function SignUpPage() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
+  const [errors, setErrors] = useState<SignUpErrors>({})
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedFirstName = firstName.trim()
+    const trimmedLastName = lastName.trim()
+    const trimmedEmail = email.trim()
+    const nextErrors: SignUpErrors = {}
+
+    if (!trimmedFirstName) {
+      nextErrors.firstName = 'First name is required.'
+    } else if (trimmedFirstName.length < 2) {
+      nextErrors.firstName = 'First name must be at least 2 characters.'
+    }
+
+    if (!trimmedEmail) {
+      nextErrors.email = 'Work email is required.'
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = 'Enter a valid work email.'
+    }
+
+    if (!password) {
+      nextErrors.password = 'Password is required.'
+    } else if (!isStrongPassword(password)) {
+      nextErrors.password = 'Use 8+ characters with uppercase, lowercase, and a number.'
+    }
+
+    if (!confirmPassword) {
+      nextErrors.confirmPassword = 'Confirm your password.'
+    } else if (confirmPassword !== password) {
+      nextErrors.confirmPassword = 'Passwords do not match.'
+    }
+
+    if (!acceptedTerms) {
+      nextErrors.terms = 'Please accept the terms and privacy policy.'
+    }
+
+    setErrors(nextErrors)
+
+    if (Object.keys(nextErrors).length > 0) {
+      return
+    }
+
+    login({
+      name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
+      email: trimmedEmail,
+    })
+
+    setPassword('')
+    setConfirmPassword('')
+    navigate('/')
+  }
+
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-96px)] px-4 py-8 relative overflow-hidden">
       {/* Decorative blobs */}
@@ -12,14 +93,15 @@ export default function SignUpPage() {
         <div className="bg-white/85 backdrop-blur-xl rounded-3xl shadow-card-lg p-8 border border-white/70">
 
           {/* Back Button */}
-          <button
+          <Link
+            to="/"
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors mb-6"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back
-          </button>
+          </Link>
 
           {/* Card Header */}
           <div className="text-center mb-8">
@@ -27,7 +109,7 @@ export default function SignUpPage() {
             <p className="text-slate-500 mt-1.5 text-sm">Join thousands of teams on IntellMeet</p>
           </div>
 
-          <form  className="space-y-4" noValidate>
+          <form  className="space-y-4" noValidate onSubmit={handleSubmit}>
 
             {/* Name row */}
             <div className="grid grid-cols-2 gap-3">
@@ -35,14 +117,23 @@ export default function SignUpPage() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">First name</label>
                 <input
                   type="text"
+                  value={firstName}
+                  onChange={(event) => {
+                    setFirstName(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, firstName: undefined }))
+                  }}
                   placeholder="Jane"
-                  className={'w-full px-3.5 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring'}
+                  aria-invalid={Boolean(errors.firstName)}
+                  className={`w-full px-3.5 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring ${errors.firstName ? 'border-rose-300' : ''}`}
                 />
+                {errors.firstName && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.firstName}</p>}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">Last name</label>
                 <input
                   type="text"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
                   placeholder="Doe"
                   className={'w-full px-3.5 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring'}
                 />
@@ -60,10 +151,17 @@ export default function SignUpPage() {
                 </span>
                 <input
                   type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, email: undefined }))
+                  }}
                   placeholder="you@company.com"
-                  className={'w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring'}
+                  aria-invalid={Boolean(errors.email)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring ${errors.email ? 'border-rose-300' : ''}`}
                 />
               </div>
+              {errors.email && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.email}</p>}
             </div>
 
             {/* Password */}
@@ -76,15 +174,28 @@ export default function SignUpPage() {
                   </svg>
                 </span>
                 <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, password: undefined }))
+                  }}
                   placeholder="Min. 8 characters"
-                  className={'w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring'}
+                  aria-invalid={Boolean(errors.password)}
+                  className={`w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring ${errors.password ? 'border-rose-300' : ''}`}
                 />
-                <button type="button" className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((isVisible) => !isVisible)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ "M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"} />
                   </svg>
                 </button>
               </div>
+              {errors.password && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.password}</p>}
             </div>
 
             {/* Confirm Password */}
@@ -97,15 +208,28 @@ export default function SignUpPage() {
                   </svg>
                 </span>
                 <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(event) => {
+                    setConfirmPassword(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, confirmPassword: undefined }))
+                  }}
                   placeholder="Re-enter password"
-                  className={'w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring'}
+                  aria-invalid={Boolean(errors.confirmPassword)}
+                  className={`w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all input-ring ${errors.confirmPassword ? 'border-rose-300' : ''}`}
                 />
-                <button type="button"  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((isVisible) => !isVisible)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={"M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"} />
                   </svg>
                 </button>
               </div>
+              {errors.confirmPassword && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.confirmPassword}</p>}
             </div>
 
             {/* Terms */}
@@ -113,6 +237,11 @@ export default function SignUpPage() {
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
                   type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(event) => {
+                    setAcceptedTerms(event.target.checked)
+                    setErrors((currentErrors) => ({ ...currentErrors, terms: undefined }))
+                  }}
                   className="mt-0.5 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span className="text-sm text-slate-600 leading-relaxed">
@@ -122,6 +251,7 @@ export default function SignUpPage() {
                   <button type="button" className="font-semibold text-indigo-600 hover:underline">Privacy Policy</button>
                 </span>
               </label>
+              {errors.terms && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.terms}</p>}
             </div>
 
             {/* Submit */}

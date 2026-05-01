@@ -1,6 +1,56 @@
-import { Link } from 'react-router-dom'
+import { useState, type FormEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/auth'
+
+type LoginErrors = {
+  email?: string
+  password?: string
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
 
 export default function LoginPage() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [errors, setErrors] = useState<LoginErrors>({})
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedEmail = email.trim()
+    const nextErrors: LoginErrors = {}
+
+    if (!trimmedEmail) {
+      nextErrors.email = 'Email address is required.'
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = 'Enter a valid email address.'
+    }
+
+    if (!password) {
+      nextErrors.password = 'Password is required.'
+    } else if (password.length < 8) {
+      nextErrors.password = 'Password must be at least 8 characters.'
+    }
+
+    setErrors(nextErrors)
+
+    if (Object.keys(nextErrors).length > 0) {
+      return
+    }
+
+    login({
+      name: trimmedEmail.split('@')[0]?.replace(/[._-]+/g, ' ') || 'IntellMeet User',
+      email: trimmedEmail,
+    })
+
+    setPassword('')
+    navigate('/')
+  }
+
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-96px)] px-4 py-8 relative overflow-hidden">
       {/* Decorative blobs */}
@@ -12,14 +62,15 @@ export default function LoginPage() {
         <div className="bg-white/85 backdrop-blur-xl rounded-3xl shadow-card-lg p-8 border border-white/70">
 
           {/* Back Button */}
-          <button
+          <Link
+            to="/"
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors mb-6"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Back
-          </button>
+          </Link>
 
           {/* Card Header */}
           <div className="text-center mb-8">
@@ -27,7 +78,7 @@ export default function LoginPage() {
             <p className="text-slate-500 mt-1.5 text-sm">Log in to your IntellMeet workspace</p>
           </div>
 
-          <form className="space-y-5" noValidate>
+          <form className="space-y-5" noValidate onSubmit={handleSubmit}>
 
             {/* Email */}
             <div>
@@ -40,10 +91,17 @@ export default function LoginPage() {
                 </span>
                 <input
                   type="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, email: undefined }))
+                  }}
                   placeholder="you@company.com"
-                  className={'w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring'}
+                  aria-invalid={Boolean(errors.email)}
+                  className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring ${errors.email ? 'border-rose-300' : ''}`}
                 />
               </div>
+              {errors.email && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.email}</p>}
             </div>
 
             {/* Password */}
@@ -56,19 +114,28 @@ export default function LoginPage() {
                   </svg>
                 </span>
                 <input
-                  type='password'
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setErrors((currentErrors) => ({ ...currentErrors, password: undefined }))
+                  }}
                   placeholder="••••••••"
-                  className={'w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring'}
+                  aria-invalid={Boolean(errors.password)}
+                  className={`w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring ${errors.password ? 'border-rose-300' : ''}`}
                 />
                 <button
                   type="button"
+                  onClick={() => setShowPassword((isVisible) => !isVisible)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                 </button>
               </div>
+              {errors.password && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.password}</p>}
             </div>
 
             {/* Remember + Forgot */}
