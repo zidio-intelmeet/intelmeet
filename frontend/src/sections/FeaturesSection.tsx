@@ -33,7 +33,7 @@ export function FeaturesSection() {
           {features.map((feature, index) => (
             <article
               key={feature.title}
-              className="group rounded-[2rem] border border-blue-100 bg-white p-7 shadow-[0_16px_50px_rgba(37,99,235,0.08)] transition hover:-translate-y-1 hover:shadow-[0_22px_70px_rgba(37,99,235,0.14)]"
+              className="group rounded-4xl border border-blue-100 bg-white p-7 shadow-[0_16px_50px_rgba(37,99,235,0.08)] transition hover:-translate-y-1 hover:shadow-[0_22px_70px_rgba(37,99,235,0.14)]"
             >
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-sm font-bold text-white">
                 0{index + 1}

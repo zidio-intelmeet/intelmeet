@@ -2,10 +2,12 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 <<<<<<< Updated upstream
 import { useAuth } from '../context/auth'
+import { findCredential } from '../lib/authCredentials'
 
 type LoginErrors = {
   email?: string
   password?: string
+  form?: string
 }
 
 function isValidEmail(email: string) {
@@ -43,55 +45,17 @@ export default function LoginPage() {
       return
     }
 
-    login({
-      name: trimmedEmail.split('@')[0]?.replace(/[._-]+/g, ' ') || 'IntellMeet User',
-      email: trimmedEmail,
-    })
+    const credential = findCredential(trimmedEmail)
 
-    setPassword('')
-    navigate('/')
-=======
-import { apiService } from '../services/api'
-import { useAuthStore } from '../stores/authStore'
-
-export default function LoginPage() {
-  const navigate = useNavigate()
-  const setAuth = useAuthStore((s) => s.setAuth)
-
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    if (!email.trim() || !password.trim()) {
-      setError('Please fill in all fields')
+    if (!credential || credential.password !== password) {
+      setErrors({ form: 'Sign up first, then log in with the same email and password.' })
       return
     }
 
-    setIsSubmitting(true)
-    try {
-      const res = await apiService.login(email, password)
-      if (res.data) {
-        apiService.setAccessToken(res.data.accessToken)
-        setAuth(res.data.user, res.data.accessToken)
-        navigate('/dashboard')
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please try again.'
-      setError(message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+    login(credential)
 
-  const handleGoogleLogin = () => {
-    apiService.googleLogin()
->>>>>>> Stashed changes
+    setPassword('')
+    navigate('/workspace')
   }
 
   return (
@@ -256,6 +220,7 @@ export default function LoginPage() {
                 'Log In to IntellMeet'
               )}
             </button>
+            {errors.form && <p className="text-center text-sm font-semibold text-rose-600">{errors.form}</p>}
 
             {/* Divider */}
             <div className="flex items-center gap-3">

@@ -30,7 +30,7 @@ export function WorkflowSection() {
 
         <div className="mt-14 grid gap-6 lg:grid-cols-3">
           {workflowSteps.map((step) => (
-            <article key={step.step} className="rounded-[2rem] border border-white bg-white p-6 shadow-sm">
+            <article key={step.step} className="rounded-4xl border border-white bg-white p-6 shadow-sm">
               <span className="text-sm font-bold tracking-[0.3em] text-blue-600">{step.step}</span>
               <h3 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">{step.title}</h3>
               <p className="mt-4 text-base leading-7 text-slate-600">{step.description}</p>

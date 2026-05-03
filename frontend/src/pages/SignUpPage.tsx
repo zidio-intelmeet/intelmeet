@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-<<<<<<< Updated upstream
-import { useAuth } from '../context/auth'
+import { findCredential, saveCredential } from '../lib/authCredentials'
 
 type SignUpErrors = {
   firstName?: string
@@ -9,6 +8,7 @@ type SignUpErrors = {
   password?: string
   confirmPassword?: string
   terms?: string
+  form?: string
 }
 
 function isValidEmail(email: string) {
@@ -21,16 +21,6 @@ function isStrongPassword(password: string) {
 
 export default function SignUpPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
-=======
-import { apiService } from '../services/api'
-import { useAuthStore } from '../stores/authStore'
-
-export default function SignUpPage() {
-  const navigate = useNavigate()
-  const setAuth = useAuthStore((s) => s.setAuth)
-
->>>>>>> Stashed changes
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -77,72 +67,25 @@ export default function SignUpPage() {
       nextErrors.terms = 'Please accept the terms and privacy policy.'
     }
 
+    if (trimmedEmail && findCredential(trimmedEmail)) {
+      nextErrors.email = 'An account with this email already exists. Log in with this email.'
+    }
+
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
       return
     }
 
-    login({
+    saveCredential({
       name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
       email: trimmedEmail,
+      password,
     })
 
     setPassword('')
     setConfirmPassword('')
-    navigate('/')
-=======
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [agreedToTerms, setAgreedToTerms] = useState(false)
-  const [error, setError] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
-
-    // Validation
-    if (!firstName.trim() || !lastName.trim()) {
-      setError('Please enter your full name')
-      return
-    }
-    if (!email.trim()) {
-      setError('Please enter your email address')
-      return
-    }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters')
-      return
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
-    if (!agreedToTerms) {
-      setError('Please agree to the Terms of Service and Privacy Policy')
-      return
-    }
-
-    setIsSubmitting(true)
-    try {
-      const fullName = `${firstName.trim()} ${lastName.trim()}`
-      const res = await apiService.register(fullName, email, password)
-      if (res.data) {
-        apiService.setAccessToken(res.data.accessToken)
-        setAuth(res.data.user, res.data.accessToken)
-        navigate('/dashboard')
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Registration failed. Please try again.'
-      setError(message)
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
-
-  const handleGoogleLogin = () => {
-    apiService.googleLogin()
->>>>>>> Stashed changes
+    navigate('/login')
   }
 
   return (
@@ -429,6 +372,7 @@ export default function SignUpPage() {
                 'Create My Account'
               )}
             </button>
+            {errors.form && <p className="text-center text-sm font-semibold text-rose-600">{errors.form}</p>}
 
             {/* Divider */}
             <div className="flex items-center gap-3">
