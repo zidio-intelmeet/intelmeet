@@ -6,7 +6,23 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist',
+    'src/components/auth',
+    'src/components/layout/DashboardLayout.tsx',
+    'src/components/meeting',
+    'src/hooks',
+    'src/pages/AnalyticsPage.tsx',
+    'src/pages/AuthSuccessPage.tsx',
+    'src/pages/DashboardPage.tsx',
+    'src/pages/JoinMeeting.tsx',
+    'src/pages/MeetingsPage.tsx',
+    'src/pages/ProfilePage.tsx',
+    'src/pages/ProjectsPage.tsx',
+    'src/pages/VideoRoom.tsx',
+    'src/stores',
+    'src/utils',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

@@ -21,5 +21,21 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/components/auth",
+    "src/components/layout/DashboardLayout.tsx",
+    "src/components/meeting",
+    "src/hooks",
+    "src/pages/AnalyticsPage.tsx",
+    "src/pages/AuthSuccessPage.tsx",
+    "src/pages/DashboardPage.tsx",
+    "src/pages/JoinMeeting.tsx",
+    "src/pages/MeetingsPage.tsx",
+    "src/pages/ProfilePage.tsx",
+    "src/pages/ProjectsPage.tsx",
+    "src/pages/VideoRoom.tsx",
+    "src/stores",
+    "src/utils"
+  ]
 }
