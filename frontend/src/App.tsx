@@ -1,5 +1,5 @@
-import { useState, type DragEvent, type FormEvent } from 'react'
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+﻿import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
 import { CtaSection } from './sections/CtaSection'
 import { FeaturesSection } from './sections/FeaturesSection'
@@ -10,8 +10,87 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import logo from './assets/logowobg.png'
+
+const dashboardLinks = [
+  { label: 'Dashboard', to: '/workspace', icon: 'M3 11.5 12 4l9 7.5M5 10v9h5v-5h4v5h5v-9' },
+  { label: 'Meetings', to: '/meetings', icon: 'M4 7h11a2 2 0 0 1 2 2v1.5l3-2v7l-3-2V15a2 2 0 0 1-2 2H4z' },
+  { label: 'Schedule', to: '/schedule', icon: 'M7 3v4M17 3v4M4 9h16M5 5h14v15H5z' },
+  { label: 'Settings', to: '/settings', icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 12h2M18 12h2M12 4v2M12 18v2' },
+]
+
+const statCards = [
+  { label: 'Total Meetings', value: '0', detail: '0 completed', tone: 'bg-emerald-50 text-emerald-700', icon: 'M4 7h11a2 2 0 0 1 2 2v1.5l3-2v7l-3-2V15a2 2 0 0 1-2 2H4z' },
+  { label: 'Active Meetings', value: '0', detail: '0 scheduled', tone: 'bg-teal-50 text-teal-700', icon: 'M8 17V7m0 10 8-5-8-5' },
+  { label: 'Total Participants', value: '0', detail: 'Across all meetings', tone: 'bg-lime-50 text-lime-700', icon: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 20a4 4 0 0 1 8 0M12 20a4 4 0 0 1 8 0' },
+  { label: 'This Week', value: '0', detail: 'Upcoming meetings', tone: 'bg-green-50 text-green-700', icon: 'M7 3v4M17 3v4M4 9h16M5 5h14v15H5z' },
+]
+
+const quickActions = [
+  { title: 'Start Instant Meeting', detail: 'Begin a meeting right now', tone: 'bg-emerald-50 text-emerald-700', icon: 'M12 5v14M5 12h14' },
+  { title: 'Schedule Meeting', detail: 'Plan a meeting for later', tone: 'bg-teal-50 text-teal-700', icon: 'M7 3v4M17 3v4M4 9h16M5 5h14v15H5z' },
+  { title: 'Invite Team Members', detail: 'Grow your workspace', tone: 'bg-lime-50 text-lime-700', icon: 'M12 5v6M9 8h6M7 20a5 5 0 0 1 10 0M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z' },
+]
+
+type StoredMeeting = {
+  id: string
+  title: string
+  code: string
+  host: string
+  status: 'Live' | 'Ended' | 'Scheduled'
+  createdAt: string
+  recording: string
+}
+
+const LEGACY_MEETINGS_STORAGE_KEY = 'intellmeet-meetings'
+const MEETINGS_STORAGE_KEY = 'intellmeet-meetings-v2'
+
+const seedMeetings: StoredMeeting[] = []
+
+function readMeetings() {
+  try {
+    localStorage.removeItem(LEGACY_MEETINGS_STORAGE_KEY)
+    const storedMeetings = localStorage.getItem(MEETINGS_STORAGE_KEY)
+    return storedMeetings ? (JSON.parse(storedMeetings) as StoredMeeting[]) : seedMeetings
+  } catch {
+    localStorage.removeItem(MEETINGS_STORAGE_KEY)
+    return seedMeetings
+  }
+}
+
+function writeMeetings(meetings: StoredMeeting[]) {
+  localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(meetings))
+}
+
+function createMeeting(host: string) {
+  const code = Math.random().toString(36).slice(2, 10)
+  const meeting: StoredMeeting = {
+    id: crypto.randomUUID(),
+    title: 'Instant Meeting',
+    code,
+    host,
+    status: 'Live',
+    createdAt: new Date().toLocaleString([], {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+    recording: 'Recording will appear here after the meeting ends',
+  }
+  const meetings = [meeting, ...readMeetings()]
+  writeMeetings(meetings)
+  return meeting
+}
 
 function HomePage() {
+  const { user } = useAuth()
+
+  if (user) {
+    return <Navigate to="/workspace" replace />
+  }
+
   return (
     <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#eef6ff_55%,#ffffff_100%)]">
       <div className="absolute inset-x-0 top-0 z-0 h-136 bg-[linear-gradient(135deg,rgba(37,99,235,0.12),transparent_40%,rgba(14,165,233,0.12))]" />
@@ -26,6 +105,453 @@ function HomePage() {
         </main>
       </div>
     </div>
+  )
+}
+
+function WorkspacePage() {
+  const { user } = useAuth()
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <DashboardHome />
+}
+
+function DashboardIcon({ path }: { path: string }) {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
+  )
+}
+
+function WorkspaceFrame({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  const location = useLocation()
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  const initials = getInitials(user.name, user.email)
+
+  return (
+    <div className="min-h-screen bg-[#f7fbf8] text-slate-900">
+      <div className="grid min-h-screen lg:grid-cols-[17rem_1fr]">
+        <aside className="flex border-b border-emerald-100 bg-white lg:min-h-screen lg:flex-col lg:border-b-0 lg:border-r">
+          <div className="flex w-full items-center justify-between gap-4 px-5 py-4 lg:block lg:px-6">
+            <Link to="/workspace" className="flex items-end gap-3">
+              <img src={logo} alt="IntellMeet logo" className="h-20 w-20 object-contain" />
+              <span className="-ml-1 pb-5 text-2xl font-bold tracking-normal text-slate-950">IntellMeet</span>
+            </Link>
+            <div className="flex items-center gap-0 lg:hidden">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                {initials}
+              </div>
+            </div>
+          </div>
+
+          <nav className="hidden flex-1 px-3 py-3 lg:block">
+            <div className="space-y-1">
+              {dashboardLinks.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={[
+                    'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition',
+                    location.pathname === item.to
+                      ? 'bg-emerald-50 text-emerald-700 shadow-sm'
+                      : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700',
+                  ].join(' ')}
+                >
+                  <DashboardIcon path={item.icon} />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+
+          <div className="mt-auto hidden border-t border-emerald-100 p-4 lg:block">
+            <div className="flex items-center gap-3 rounded-2xl bg-emerald-50/70 p-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-900">{user.name}</p>
+                <p className="truncate text-xs text-slate-500">{user.email}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+function DashboardHome() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const [meetings, setMeetings] = useState(() => readMeetings())
+
+  if (!user) {
+    return null
+  }
+
+  const currentUser = user
+  const firstName = currentUser.name.split(/\s+/)[0] || currentUser.name
+  const initials = getInitials(currentUser.name, currentUser.email)
+
+  function handleNewMeeting() {
+    const meeting = createMeeting(currentUser.name)
+    setMeetings((currentMeetings) => [meeting, ...currentMeetings])
+    navigate('/meetings')
+  }
+
+  const activeMeetingCount = meetings.filter((meeting) => meeting.status === 'Live').length
+  const dashboardStats = statCards.map((card) => {
+    if (card.label === 'Total Meetings') {
+      return { ...card, value: String(meetings.length), detail: `${meetings.filter((meeting) => meeting.status === 'Ended').length} completed` }
+    }
+    if (card.label === 'Active Meetings') {
+      return { ...card, value: String(activeMeetingCount), detail: `${meetings.filter((meeting) => meeting.status === 'Scheduled').length} scheduled` }
+    }
+    if (card.label === 'This Week') {
+      return { ...card, value: String(meetings.length), detail: 'Total workspace meetings' }
+    }
+    return card
+  })
+
+  return (
+    <div className="min-h-screen bg-[#f7fbf8] text-slate-900">
+      <div className="grid min-h-screen lg:grid-cols-[17rem_1fr]">
+        <aside className="flex border-b border-emerald-100 bg-white lg:min-h-screen lg:flex-col lg:border-b-0 lg:border-r">
+          <div className="flex w-full items-center justify-between gap-4 px-5 py-4 lg:block lg:px-6">
+            <Link to="/" className="flex items-end gap-3">
+              <img src={logo} alt="IntellMeet logo" className="h-20 w-20 object-contain" />
+              <span className="-ml-1 pb-5 text-2xl font-bold  tracking-normal text-slate-950">IntellMeet</span>
+            </Link>
+            <div className="flex items-center gap-0 lg:hidden">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                {initials}
+              </div>
+            </div>
+          </div>
+
+          <nav className="hidden flex-1 px-3 py-3 lg:block">
+            <div className="space-y-1">
+              {dashboardLinks.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={[
+                    'flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition',
+                    item.to === '/workspace'
+                      ? 'bg-emerald-50 text-emerald-700 shadow-sm'
+                      : 'text-slate-600 hover:bg-emerald-50 hover:text-emerald-700',
+                  ].join(' ')}
+                >
+                  <DashboardIcon path={item.icon} />
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+
+          <div className="mt-auto hidden border-t border-emerald-100 p-4 lg:block">
+            <div className="flex items-center gap-3 rounded-2xl bg-emerald-50/70 p-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-900">{user.name}</p>
+                <p className="truncate text-xs text-slate-500">{user.email}</p>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main className="min-w-0">
+          <header className="flex items-center justify-between border-b border-emerald-100 bg-white px-5 py-4 sm:px-8">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Workspace</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+                Welcome back, {firstName}
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={handleNewMeeting}
+              className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+            >
+              + New Meeting
+            </button>
+          </header>
+
+          <div className="px-5 py-6 sm:px-8 lg:px-10">
+            <p className="text-sm font-medium text-slate-500">Here's what's happening with your workspace today.</p>
+
+            <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {dashboardStats.map((card) => (
+                <article key={card.label} className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-bold text-slate-500">{card.label}</p>
+                      <p className="mt-6 text-3xl font-bold text-slate-950">{card.value}</p>
+                      <p className="mt-1 text-sm font-medium text-slate-400">{card.detail}</p>
+                    </div>
+                    <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${card.tone}`}>
+                      <DashboardIcon path={card.icon} />
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </section>
+
+            <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
+              <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-950">Quick Actions</h2>
+                <div className="mt-5 space-y-3">
+                  {quickActions.map((action) => (
+                    <button
+                      type="button"
+                      key={action.title}
+                      onClick={action.title === 'Start Instant Meeting' ? handleNewMeeting : undefined}
+                      className={`flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left transition hover:scale-[1.01] ${action.tone}`}
+                    >
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/75">
+                        <DashboardIcon path={action.icon} />
+                      </span>
+                      <span>
+                        <span className="block text-sm font-bold text-slate-900">{action.title}</span>
+                        <span className="block text-sm font-medium text-slate-500">{action.detail}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                <h2 className="text-lg font-bold text-slate-950">Recent Meetings</h2>
+                <div className="mt-5 space-y-3">
+                  {meetings.slice(0, 3).map((meeting) => (
+                    <article key={meeting.code} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-4">
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">{meeting.title}</h3>
+                        <p className="mt-2 text-xs font-semibold text-slate-500">
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">{meeting.status}</span>
+                          <span className="ml-2">Code: {meeting.code}</span>
+                        </p>
+                        <p className="mt-3 text-xs font-medium text-slate-400">Started: {meeting.createdAt}</p>
+                      </div>
+                      <span className="text-2xl text-slate-300">›</span>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
+  )
+}
+
+function WorkspaceMeetingsPage() {
+  const { user } = useAuth()
+  const [meetings, setMeetings] = useState(() => readMeetings())
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  const currentUser = user
+
+  function handleNewMeeting() {
+    const meeting = createMeeting(currentUser.name)
+    setMeetings((currentMeetings) => [meeting, ...currentMeetings])
+  }
+
+  function handleDeleteMeeting(meetingId: string) {
+    setMeetings((currentMeetings) => {
+      const nextMeetings = currentMeetings.filter((meeting) => meeting.id !== meetingId)
+      writeMeetings(nextMeetings)
+      return nextMeetings
+    })
+  }
+
+  return (
+    <WorkspaceFrame>
+      <>
+        <header className="flex items-center justify-between border-b border-emerald-100 bg-white px-5 py-5 sm:px-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Meetings</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Meeting Details</h1>
+          </div>
+          <button
+            type="button"
+            onClick={handleNewMeeting}
+            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+          >
+            + New Meeting
+          </button>
+        </header>
+
+        <section className="px-5 py-6 sm:px-8 lg:px-10">
+          <div className="grid gap-4">
+            {meetings.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-emerald-200 bg-white p-8 text-center">
+                <p className="text-sm font-semibold text-slate-500">No meeting records yet.</p>
+              </div>
+            )}
+
+            {meetings.map((meeting) => (
+              <article key={meeting.id} className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-bold text-slate-950">{meeting.title}</h2>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                        {meeting.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-slate-500">Hosted by {meeting.host}</p>
+                  </div>
+                  <div className="grid gap-3 text-sm sm:grid-cols-3 lg:min-w-136">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Code</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.code}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Started</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.createdAt}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Recording</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.recording}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteMeeting(meeting.id)}
+                    className="self-start rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50 lg:self-center"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </>
+    </WorkspaceFrame>
+  )
+}
+
+function WorkspaceSettingsPage() {
+  const { user, updateProfile, logout } = useAuth()
+  const navigate = useNavigate()
+  const [name, setName] = useState(user?.name ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
+  const [phone, setPhone] = useState(user?.phone ?? '')
+  const [address, setAddress] = useState(user?.address ?? '')
+  const [about, setAbout] = useState(user?.about ?? '')
+  const [savedMessage, setSavedMessage] = useState('')
+  const [errors, setErrors] = useState<SettingsErrors>({})
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim()
+    const trimmedPhone = phone.trim()
+    const trimmedAddress = address.trim()
+    const trimmedAbout = about.trim()
+    const nextErrors: SettingsErrors = {}
+
+    if (!trimmedName) nextErrors.name = 'Full name is required.'
+    if (!trimmedEmail) nextErrors.email = 'Email ID is required.'
+    else if (!isValidEmail(trimmedEmail)) nextErrors.email = 'Enter a valid email ID.'
+    if (trimmedPhone && !isValidPhone(trimmedPhone)) nextErrors.phone = 'Enter a valid contact number.'
+    if (trimmedAddress.length > 120) nextErrors.address = 'Address must be 120 characters or less.'
+    if (trimmedAbout.length > 300) nextErrors.about = 'About must be 300 characters or less.'
+
+    setErrors(nextErrors)
+    setSavedMessage('')
+
+    if (Object.keys(nextErrors).length > 0) return
+
+    updateProfile({
+      name: trimmedName,
+      email: trimmedEmail,
+      phone: trimmedPhone,
+      address: trimmedAddress,
+      about: trimmedAbout,
+    })
+    setSavedMessage('Profile updated successfully.')
+  }
+
+  function handleLogout() {
+    logout()
+    navigate('/')
+  }
+
+  return (
+    <WorkspaceFrame>
+      <>
+        <header className="border-b border-emerald-100 bg-white px-5 py-5 sm:px-8">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Settings</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Edit Profile</h1>
+        </header>
+
+        <section className="px-5 py-6 sm:px-8 lg:px-10">
+          <form onSubmit={handleSubmit} className="max-w-4xl rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Full name</span>
+                <input value={name} onChange={(event) => setName(event.target.value)} className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 ${errors.name ? 'border-rose-300' : 'border-slate-200'}`} />
+                {errors.name && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.name}</p>}
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Email ID</span>
+                <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 ${errors.email ? 'border-rose-300' : 'border-slate-200'}`} />
+                {errors.email && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.email}</p>}
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Contact number</span>
+                <input value={phone} onChange={(event) => setPhone(event.target.value)} className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 ${errors.phone ? 'border-rose-300' : 'border-slate-200'}`} />
+                {errors.phone && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.phone}</p>}
+              </label>
+              <label className="block">
+                <span className="text-sm font-semibold text-slate-700">Address</span>
+                <input value={address} onChange={(event) => setAddress(event.target.value)} className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 ${errors.address ? 'border-rose-300' : 'border-slate-200'}`} />
+                {errors.address && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.address}</p>}
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="text-sm font-semibold text-slate-700">About</span>
+                <textarea value={about} onChange={(event) => setAbout(event.target.value)} rows={5} className={`mt-2 w-full resize-none rounded-xl border bg-white px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 ${errors.about ? 'border-rose-300' : 'border-slate-200'}`} />
+                {errors.about && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.about}</p>}
+              </label>
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button type="submit" className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-700">
+                Save Changes
+              </button>
+              <button type="button" onClick={handleLogout} className="rounded-xl border border-rose-200 px-5 py-3 text-sm font-bold text-rose-600 transition hover:bg-rose-50">
+                Logout
+              </button>
+              {savedMessage && <p className="text-sm font-semibold text-emerald-600">{savedMessage}</p>}
+            </div>
+          </form>
+        </section>
+      </>
+    </WorkspaceFrame>
   )
 }
 
@@ -57,7 +583,10 @@ type ScheduleTask = {
   title: string
   details: string
   columnId: ScheduleColumnId
+  createdAt: number
 }
+
+type ScheduleSortOrder = 'newest' | 'earliest'
 
 type SettingsErrors = {
   name?: string
@@ -89,10 +618,21 @@ function getInitials(name: string, email: string) {
 }
 
 function SchedulePage() {
+  const { user } = useAuth()
   const [tasks, setTasks] = useState<ScheduleTask[]>([])
   const [taskTitle, setTaskTitle] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [targetColumn, setTargetColumn] = useState<ScheduleColumnId>('todo')
+  const [sortOrders, setSortOrders] = useState<Record<ScheduleColumnId, ScheduleSortOrder>>({
+    todo: 'newest',
+    progress: 'newest',
+    scheduled: 'newest',
+  })
+  const [sortMenuColumn, setSortMenuColumn] = useState<ScheduleColumnId | null>(null)
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
 
   function handleAddTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -102,13 +642,14 @@ function SchedulePage() {
     }
 
     setTasks((currentTasks) => [
-      ...currentTasks,
       {
         id: crypto.randomUUID(),
         title: taskTitle.trim(),
         details: taskDetails.trim(),
         columnId: targetColumn,
+        createdAt: Date.now(),
       },
+      ...currentTasks,
     ])
     setTaskTitle('')
     setTaskDetails('')
@@ -129,41 +670,59 @@ function SchedulePage() {
     )
   }
 
+  function getColumnTasks(columnId: ScheduleColumnId) {
+    return tasks
+      .filter((task) => task.columnId === columnId)
+      .toSorted((firstTask, secondTask) =>
+        sortOrders[columnId] === 'newest'
+          ? secondTask.createdAt - firstTask.createdAt
+          : firstTask.createdAt - secondTask.createdAt,
+      )
+  }
+
+  function updateSortOrder(columnId: ScheduleColumnId, order: ScheduleSortOrder) {
+    setSortOrders((currentOrders) => ({ ...currentOrders, [columnId]: order }))
+    setSortMenuColumn(null)
+  }
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_right,rgba(244,114,182,0.18),transparent_28%),linear-gradient(180deg,#fffaf0_0%,#f2fbf4_48%,#ffffff_100%)]">
-      <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <section className="rounded-3xl border border-amber-100 bg-white/78 p-6 shadow-[0_24px_70px_rgba(120,113,108,0.13)] backdrop-blur sm:p-8">
-          <div className="flex flex-col gap-4 border-b border-amber-100 pb-6 lg:flex-row lg:items-end lg:justify-between">
+    <WorkspaceFrame>
+      <>
+        <header className="border-b border-emerald-100 bg-white px-5 py-5 sm:px-8">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Schedule</p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Kanban Board</h1>
+        </header>
+
+        <section className="px-5 py-6 sm:px-8 lg:px-10">
+          <div className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex flex-col gap-4 border-b border-emerald-100 pb-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Schedule</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-950">Kanban Board</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-stone-600">
+              <p className="max-w-2xl text-sm leading-6 text-slate-600">
                 Create your own tasks, then drag and drop them into the column where they belong.
               </p>
             </div>
           </div>
 
-          <form onSubmit={handleAddTask} className="mt-6 grid gap-3 rounded-2xl border border-stone-200/70 bg-white/85 p-4 sm:grid-cols-[1fr_1fr_auto]">
+          <form onSubmit={handleAddTask} className="mt-6 grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 sm:grid-cols-[1fr_1fr_auto]">
             <input
               type="text"
               value={taskTitle}
               onChange={(event) => setTaskTitle(event.target.value)}
               placeholder="Write a task or meeting title"
-              className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              className="rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
             />
             <input
               type="text"
               value={taskDetails}
               onChange={(event) => setTaskDetails(event.target.value)}
               placeholder="Add time, note, or detail"
-              className="rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              className="rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
             />
             <div className="flex gap-2">
               <select
                 value={targetColumn}
                 onChange={(event) => setTargetColumn(event.target.value as ScheduleColumnId)}
-                className="min-w-36 rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm font-medium text-stone-700 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                className="min-w-36 rounded-xl border border-emerald-100 bg-white px-3 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
               >
                 {scheduleColumns.map((column) => (
                   <option key={column.id} value={column.id}>
@@ -173,7 +732,7 @@ function SchedulePage() {
               </select>
               <button
                 type="submit"
-                className="rounded-xl bg-stone-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-stone-900/15 transition hover:bg-stone-800"
+                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
               >
                 Add
               </button>
@@ -182,55 +741,108 @@ function SchedulePage() {
 
           <div className="mt-7 grid gap-5 lg:grid-cols-3">
             {scheduleColumns.map((column) => (
-              <div
-                key={column.id}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleDrop(event, column.id)}
-                className="min-h-96 rounded-2xl border border-stone-200/70 bg-stone-50/80 p-4"
-              >
+              <div key={column.id} className="relative min-h-96 rounded-2xl border border-emerald-100 bg-slate-50 p-4">
                 <div className="mb-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`h-2.5 w-2.5 rounded-full ${column.accent}`} />
-                    <h2 className="text-sm font-bold uppercase tracking-wide text-stone-800">{column.title}</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">{column.title}</h2>
                   </div>
-                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-stone-500 shadow-sm">
-                    {tasks.filter((task) => task.columnId === column.id).length}
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 shadow-sm">
+                    {getColumnTasks(column.id).length}
                   </span>
                 </div>
 
-                <div className="min-h-72 space-y-3 rounded-xl border border-dashed border-stone-200 p-2">
-                  {tasks.filter((task) => task.columnId === column.id).length === 0 && (
-                    <div className="flex min-h-32 items-center justify-center rounded-xl bg-white/60 px-4 text-center text-sm font-medium text-stone-400">
+                <div className="mb-3 flex items-center justify-between rounded-xl border border-emerald-100 bg-white px-3 py-2">
+                  <p className="text-xs font-semibold text-slate-500">
+                    Sort by <span className="font-bold text-slate-800">{sortOrders[column.id] === 'newest' ? 'Newest' : 'Earliest'}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSortMenuColumn(column.id)}
+                    className="rounded-lg p-2 text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    aria-label={`Sort ${column.title} tasks`}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7v10m0 0 3-3m-3 3-3-3M16 17V7m0 0 3 3m-3-3-3 3" />
+                    </svg>
+                  </button>
+                </div>
+
+                {sortMenuColumn === column.id && (
+                  <div className="absolute left-4 right-4 top-30 z-20 rounded-2xl border border-emerald-100 bg-white p-4 shadow-xl shadow-emerald-950/10">
+                    <div className="flex items-center justify-between border-b border-emerald-50 pb-3">
+                      <h3 className="text-sm font-bold text-slate-900">Sort {column.title}</h3>
+                      <button
+                        type="button"
+                        onClick={() => setSortMenuColumn(null)}
+                        className="rounded-lg px-2 py-1 text-sm font-bold text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                        aria-label="Close sort menu"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      {[
+                        { value: 'newest' as const, label: 'Date created: Newest' },
+                        { value: 'earliest' as const, label: 'Date created: Earliest' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateSortOrder(column.id, option.value)}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-emerald-50"
+                        >
+                          <span>{option.label}</span>
+                          <span
+                            className={[
+                              'flex h-5 w-5 items-center justify-center rounded-full border',
+                              sortOrders[column.id] === option.value ? 'border-emerald-600' : 'border-slate-300',
+                            ].join(' ')}
+                          >
+                            {sortOrders[column.id] === option.value && <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handleDrop(event, column.id)}
+                  className="max-h-112 min-h-72 space-y-3 overflow-y-auto rounded-xl border border-dashed border-emerald-100 p-2 pr-3"
+                >
+                  {getColumnTasks(column.id).length === 0 && (
+                    <div className="flex min-h-32 items-center justify-center rounded-xl bg-white px-4 text-center text-sm font-medium text-slate-400">
                       Drop tasks here
                     </div>
                   )}
 
-                  {tasks
-                    .filter((task) => task.columnId === column.id)
-                    .map((task) => (
+                  {getColumnTasks(column.id).map((task) => (
                     <article
                       key={task.id}
                       draggable
                       onDragStart={(event) => handleDragStart(event, task.id)}
-                      className="cursor-grab rounded-2xl border border-white bg-white p-4 shadow-[0_14px_35px_rgba(120,113,108,0.12)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(120,113,108,0.16)] active:cursor-grabbing"
+                      className="cursor-grab rounded-2xl border border-emerald-50 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md active:cursor-grabbing"
                     >
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                           Task
                         </span>
-                        <span className="text-xs font-medium text-stone-400">Drag me</span>
+                        <span className="text-xs font-medium text-slate-400">Drag me</span>
                       </div>
-                      <h3 className="text-base font-bold text-stone-950">{task.title}</h3>
-                      {task.details && <p className="mt-2 text-sm leading-6 text-stone-500">{task.details}</p>}
+                      <h3 className="text-base font-bold text-slate-950">{task.title}</h3>
+                      {task.details && <p className="mt-2 text-sm leading-6 text-slate-500">{task.details}</p>}
                     </article>
                   ))}
                 </div>
               </div>
             ))}
           </div>
+          </div>
         </section>
-      </main>
-    </div>
+      </>
+    </WorkspaceFrame>
   )
 }
 
@@ -294,197 +906,6 @@ function ProfilePage() {
   )
 }
 
-function SettingsPage() {
-  const { user, updateProfile } = useAuth()
-  const [name, setName] = useState(user?.name ?? '')
-  const [email, setEmail] = useState(user?.email ?? '')
-  const [phone, setPhone] = useState(user?.phone ?? '')
-  const [address, setAddress] = useState(user?.address ?? '')
-  const [about, setAbout] = useState(user?.about ?? '')
-  const [savedMessage, setSavedMessage] = useState('')
-  const [errors, setErrors] = useState<SettingsErrors>({})
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmedName = name.trim()
-    const trimmedEmail = email.trim()
-    const trimmedPhone = phone.trim()
-    const trimmedAddress = address.trim()
-    const trimmedAbout = about.trim()
-    const nextErrors: SettingsErrors = {}
-
-    if (!trimmedName) {
-      nextErrors.name = 'Full name is required.'
-    } else if (trimmedName.length < 2) {
-      nextErrors.name = 'Full name must be at least 2 characters.'
-    }
-
-    if (!trimmedEmail) {
-      nextErrors.email = 'Email ID is required.'
-    } else if (!isValidEmail(trimmedEmail)) {
-      nextErrors.email = 'Enter a valid email ID.'
-    }
-
-    if (trimmedPhone && !isValidPhone(trimmedPhone)) {
-      nextErrors.phone = 'Enter a valid contact number.'
-    }
-
-    if (trimmedAddress.length > 120) {
-      nextErrors.address = 'Address must be 120 characters or less.'
-    }
-
-    if (trimmedAbout.length > 300) {
-      nextErrors.about = 'About must be 300 characters or less.'
-    }
-
-    setErrors(nextErrors)
-    setSavedMessage('')
-
-    if (Object.keys(nextErrors).length > 0) {
-      return
-    }
-
-    updateProfile({
-      name: trimmedName,
-      email: trimmedEmail,
-      phone: trimmedPhone,
-      address: trimmedAddress,
-      about: trimmedAbout,
-    })
-    setSavedMessage('Profile updated successfully.')
-  }
-
-  if (!user) {
-    return (
-      <AccountPage
-        title="Settings"
-        description="Log in to edit your profile information."
-      />
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)]">
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-3xl border border-blue-100 bg-white p-6 shadow-[0_20px_60px_rgba(37,99,235,0.10)] sm:p-8"
-        >
-          <div className="flex flex-col gap-3 border-b border-blue-50 pb-6 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wide text-blue-600">Settings</p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Edit Profile</h1>
-              <p className="mt-2 text-sm text-slate-600">Update the personal information shown on your profile.</p>
-            </div>
-            <Link to="/profile" className="text-sm font-semibold text-blue-600 hover:text-blue-800">
-              View Profile
-            </Link>
-          </div>
-
-          <div className="mt-6 grid gap-5 sm:grid-cols-2">
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Full name</span>
-              <input
-                type="text"
-                value={name}
-                onChange={(event) => {
-                  setName(event.target.value)
-                  setErrors((currentErrors) => ({ ...currentErrors, name: undefined }))
-                  setSavedMessage('')
-                }}
-                aria-invalid={Boolean(errors.name)}
-                className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 ${errors.name ? 'border-rose-300' : 'border-slate-200'}`}
-              />
-              {errors.name && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.name}</p>}
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Email ID</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value)
-                  setErrors((currentErrors) => ({ ...currentErrors, email: undefined }))
-                  setSavedMessage('')
-                }}
-                aria-invalid={Boolean(errors.email)}
-                className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 ${errors.email ? 'border-rose-300' : 'border-slate-200'}`}
-              />
-              {errors.email && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.email}</p>}
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Contact number</span>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => {
-                  setPhone(event.target.value)
-                  setErrors((currentErrors) => ({ ...currentErrors, phone: undefined }))
-                  setSavedMessage('')
-                }}
-                placeholder="+91 98765 43210"
-                aria-invalid={Boolean(errors.phone)}
-                className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 ${errors.phone ? 'border-rose-300' : 'border-slate-200'}`}
-              />
-              {errors.phone && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.phone}</p>}
-            </label>
-            <label className="block">
-              <span className="text-sm font-semibold text-slate-700">Address</span>
-              <input
-                type="text"
-                value={address}
-                onChange={(event) => {
-                  setAddress(event.target.value)
-                  setErrors((currentErrors) => ({ ...currentErrors, address: undefined }))
-                  setSavedMessage('')
-                }}
-                placeholder="City, state, country"
-                aria-invalid={Boolean(errors.address)}
-                className={`mt-2 w-full rounded-xl border bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 ${errors.address ? 'border-rose-300' : 'border-slate-200'}`}
-              />
-              {errors.address && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.address}</p>}
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-slate-700">About</span>
-              <textarea
-                value={about}
-                onChange={(event) => {
-                  setAbout(event.target.value)
-                  setErrors((currentErrors) => ({ ...currentErrors, about: undefined }))
-                  setSavedMessage('')
-                }}
-                rows={5}
-                placeholder="Write a short introduction about yourself"
-                aria-invalid={Boolean(errors.about)}
-                className={`mt-2 w-full resize-none rounded-xl border bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 ${errors.about ? 'border-rose-300' : 'border-slate-200'}`}
-              />
-              <div className="mt-1.5 flex items-center justify-between gap-3">
-                {errors.about ? (
-                  <p className="text-xs font-medium text-rose-600">{errors.about}</p>
-                ) : (
-                  <span />
-                )}
-                <p className="text-xs text-slate-400">{about.length}/300</p>
-              </div>
-            </label>
-          </div>
-
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              type="submit"
-              className="rounded-full bg-blue-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
-            >
-              Save Changes
-            </button>
-            {savedMessage && <p className="text-sm font-medium text-emerald-600">{savedMessage}</p>}
-          </div>
-        </form>
-      </main>
-    </div>
-  )
-}
-
 function Layout() {
   const location = useLocation()
   const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
@@ -494,13 +915,13 @@ function Layout() {
       {isAuthPage && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/meetings" element={<AccountPage title="Meetings" description="Host a new meeting or join an existing IntellMeet session from here." />} />
+        <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
-        <Route path="/recordings" element={<AccountPage title="Recordings" description="Access meeting recordings, notes, and summaries shared by the admin." />} />
-        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/settings" element={<WorkspaceSettingsPage />} />
       </Routes>
     </>
   )

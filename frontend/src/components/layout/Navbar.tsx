@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import logo from '../../assets/logo.png'
+import logo from '../../assets/logowobg.png'
 import { useAuth } from '../../context/auth'
 
 const accountLinks = [
   { label: 'Profile', to: '/profile' },
   { label: 'Meetings', to: '/meetings', description: 'Host or join meeting' },
   { label: 'Schedule', to: '/schedule', description: 'Tasks and scheduled meetings' },
-  { label: 'Recordings', to: '/recordings', description: 'Recordings and admin notes' },
   { label: 'Settings', to: '/settings', description: 'Edit personal information' },
 ]
 
@@ -58,7 +57,7 @@ export function Navbar() {
           <img
             src={logo}
             alt="IntellMeet logo"
-            className="h-12 w-12 scale-250 object-contain sm:h-14 sm:w-14"
+            className="h-12 w-12 scale-150 object-contain sm:h-14 sm:w-14"
           />
           <div>
             <p className="text-lg font-semibold tracking-tight text-slate-900">IntellMeet</p>

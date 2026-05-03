@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/auth'
+import { findCredential, saveCredential } from '../lib/authCredentials'
 
 type SignUpErrors = {
   firstName?: string
@@ -8,6 +8,7 @@ type SignUpErrors = {
   password?: string
   confirmPassword?: string
   terms?: string
+  form?: string
 }
 
 function isValidEmail(email: string) {
@@ -20,7 +21,6 @@ function isStrongPassword(password: string) {
 
 export default function SignUpPage() {
   const navigate = useNavigate()
-  const { login } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -66,20 +66,25 @@ export default function SignUpPage() {
       nextErrors.terms = 'Please accept the terms and privacy policy.'
     }
 
+    if (trimmedEmail && findCredential(trimmedEmail)) {
+      nextErrors.email = 'An account with this email already exists. Log in with this email.'
+    }
+
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
       return
     }
 
-    login({
+    saveCredential({
       name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
       email: trimmedEmail,
+      password,
     })
 
     setPassword('')
     setConfirmPassword('')
-    navigate('/')
+    navigate('/login')
   }
 
   return (
@@ -261,6 +266,7 @@ export default function SignUpPage() {
             >
               Create My Account
             </button>
+            {errors.form && <p className="text-center text-sm font-semibold text-rose-600">{errors.form}</p>}
 
             {/* Divider */}
             <div className="flex items-center gap-3">

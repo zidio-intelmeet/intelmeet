@@ -1,10 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/auth'
+import { findCredential } from '../lib/authCredentials'
 
 type LoginErrors = {
   email?: string
   password?: string
+  form?: string
 }
 
 function isValidEmail(email: string) {
@@ -42,13 +44,17 @@ export default function LoginPage() {
       return
     }
 
-    login({
-      name: trimmedEmail.split('@')[0]?.replace(/[._-]+/g, ' ') || 'IntellMeet User',
-      email: trimmedEmail,
-    })
+    const credential = findCredential(trimmedEmail)
+
+    if (!credential || credential.password !== password) {
+      setErrors({ form: 'Sign up first, then log in with the same email and password.' })
+      return
+    }
+
+    login(credential)
 
     setPassword('')
-    navigate('/')
+    navigate('/workspace')
   }
 
   return (
@@ -159,6 +165,7 @@ export default function LoginPage() {
             >
               Log In to IntellMeet
             </button>
+            {errors.form && <p className="text-center text-sm font-semibold text-rose-600">{errors.form}</p>}
 
             {/* Divider */}
             <div className="flex items-center gap-3">

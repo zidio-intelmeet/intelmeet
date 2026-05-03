@@ -38,7 +38,7 @@ export function HeroSection() {
     setMeetingError('')
 
     if (!user) {
-      setHostMessage('Login is pending. Please log in before hosting a meeting.')
+      navigate('/signup')
       return
     }
 
