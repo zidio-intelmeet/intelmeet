@@ -1,5 +1,4 @@
 import { useState, useEffect, type DragEvent, type FormEvent, type ReactNode } from 'react'
-﻿import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
 import { CtaSection } from './sections/CtaSection'
@@ -382,7 +381,6 @@ function DashboardHome() {
                         <p className="mt-3 text-xs font-medium text-slate-400">Started: {meeting.createdAt}</p>
                       </div>
                       <Link to={`/meeting/${meeting.code}`} className="text-2xl text-slate-300 hover:text-emerald-600 transition">›</Link>
-                      <span className="text-2xl text-slate-300">â€º</span>
                     </article>
                   ))}
                 </div>
@@ -1250,5 +1248,3 @@ function App() {
 }
 
 export default App
-export default App
-
