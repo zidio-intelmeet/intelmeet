@@ -11,24 +11,41 @@ import healthRoutes from "./routes/health.routes";
 import { apiRateLimiter } from "./middlewares/rate-limiter";
 import { attachTenantContext } from "./middlewares/tenant.middleware";
 import authRoutes from "./routes/auth.routes";
-// import orgRoutes from "./routes/org.routes";
+import meetingRoutes from "./routes/meeting.routes"; 
 import sourceMapSupport from "source-map-support";
 sourceMapSupport.install();
-
 import env from "./configs/env";
 
 const app: Express = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// 🚀 Bulletproof CORS Setup
+const allowedOrigins = [
+  env.CORS_ORIGIN, 
+  "http://localhost:5173", 
+  "http://127.0.0.1:5173"
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: env.CORS_ORIGIN,
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Tenant-ID", "X-Tenant-Slug"],
     credentials: true
   })
 );
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -61,7 +78,7 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1", apiRateLimiter);
 app.use("/api/auth", authRoutes);
-// app.use("/api/orgs", orgRoutes);
+app.use("/api/meetings", meetingRoutes); 
 
 // Not found handler (should be after routes)
 app.use(notFoundHandler);

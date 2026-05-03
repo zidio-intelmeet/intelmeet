@@ -1,9 +1,6 @@
-import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
+import { useState, useEffect, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
-import { DashboardLayout } from './components/layout/DashboardLayout'
-import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { CreateOrgModal } from './components/org/CreateOrgModal'
 import { CtaSection } from './sections/CtaSection'
 import { FeaturesSection } from './sections/FeaturesSection'
 import { HeroSection } from './sections/HeroSection'
@@ -13,6 +10,11 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import MeetingRoom from './pages/MeetingRoom' 
+
+// ⚠️ Make sure these paths point to your actual files!
+import { useAuthStore } from './stores/authStore' 
+import { apiService } from './services/api'
 import logo from './assets/logowobg.png'
 
 const dashboardLinks = [
@@ -349,7 +351,7 @@ function DashboardHome() {
                         </p>
                         <p className="mt-3 text-xs font-medium text-slate-400">Started: {meeting.createdAt}</p>
                       </div>
-                      <span className="text-2xl text-slate-300">›</span>
+                      <Link to={`/meeting/${meeting.code}`} className="text-2xl text-slate-300 hover:text-emerald-600 transition">›</Link>
                     </article>
                   ))}
                 </div>
@@ -365,6 +367,7 @@ function DashboardHome() {
 function WorkspaceMeetingsPage() {
   const { user } = useAuth()
   const [meetings, setMeetings] = useState(() => readMeetings())
+  const navigate = useNavigate()
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -436,13 +439,22 @@ function WorkspaceMeetingsPage() {
                       <p className="mt-1 font-bold text-slate-800">{meeting.recording}</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMeeting(meeting.id)}
-                    className="self-start rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50 lg:self-center"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex gap-2 self-start lg:self-center">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/meeting/${meeting.code}`)}
+                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      Join Room
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMeeting(meeting.id)}
+                      className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
@@ -926,26 +938,14 @@ function Layout() {
         <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/settings" element={<WorkspaceSettingsPage />} />
+        
+        <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
       </Routes>
     </>
   )
 }
-
-function PlaceholderPage({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-        <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-      </div>
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-      <p className="text-slate-500 mt-1 text-sm">{description}</p>
-    </div>
-  )
-}
-
 function AuthInitializer({ children }: { children: React.ReactNode }) {
   const setAuth = useAuthStore(s => s.setAuth)
-  const setLoading = useAuthStore(s => s.setLoading)
   const logout = useAuthStore(s => s.logout)
 
   useEffect(() => {
@@ -953,25 +953,33 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
       try {
         const refreshRes = await apiService.refreshToken()
         const accessToken = refreshRes.data?.accessToken
+        
         if (accessToken) {
           apiService.setAccessToken(accessToken)
           const meRes = await apiService.getMe()
-          if (meRes.data) { setAuth(meRes.data, accessToken); return }
+          if (meRes.data) {
+            setAuth(meRes.data, accessToken)
+            return
+          }
         }
-      } catch {}
+      } catch (error) {
+        // 🤫 Silent failure: If no token is found, we just stay logged out.
+        console.log("No active session found. Please log in.");
+      }
       logout()
     }
     initAuth()
-  }, [setAuth, setLoading, logout])
+  }, [setAuth, logout])
 
   return <>{children}</>
 }
-
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Layout />
+        <AuthInitializer>
+          <Layout />
+        </AuthInitializer>
       </AuthProvider>
     </BrowserRouter>
   )
