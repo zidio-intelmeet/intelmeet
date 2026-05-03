@@ -1,9 +1,6 @@
-import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
+﻿import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
-import { DashboardLayout } from './components/layout/DashboardLayout'
-import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { CreateOrgModal } from './components/org/CreateOrgModal'
 import { CtaSection } from './sections/CtaSection'
 import { FeaturesSection } from './sections/FeaturesSection'
 import { HeroSection } from './sections/HeroSection'
@@ -14,6 +11,7 @@ import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import logo from './assets/logowobg.png'
+import wordmark from './assets/intellmeet_wordmark.png'
 
 const dashboardLinks = [
   { label: 'Dashboard', to: '/workspace', icon: 'M3 11.5 12 4l9 7.5M5 10v9h5v-5h4v5h5v-9' },
@@ -25,7 +23,6 @@ const dashboardLinks = [
 const statCards = [
   { label: 'Total Meetings', value: '0', detail: '0 completed', tone: 'bg-emerald-50 text-emerald-700', icon: 'M4 7h11a2 2 0 0 1 2 2v1.5l3-2v7l-3-2V15a2 2 0 0 1-2 2H4z' },
   { label: 'Active Meetings', value: '0', detail: '0 scheduled', tone: 'bg-teal-50 text-teal-700', icon: 'M8 17V7m0 10 8-5-8-5' },
-  { label: 'Total Participants', value: '0', detail: 'Across all meetings', tone: 'bg-lime-50 text-lime-700', icon: 'M8 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 20a4 4 0 0 1 8 0M12 20a4 4 0 0 1 8 0' },
   { label: 'This Week', value: '0', detail: 'Upcoming meetings', tone: 'bg-green-50 text-green-700', icon: 'M7 3v4M17 3v4M4 9h16M5 5h14v15H5z' },
 ]
 
@@ -43,6 +40,11 @@ type StoredMeeting = {
   status: 'Live' | 'Ended' | 'Scheduled'
   createdAt: string
   recording: string
+  type: string
+  scheduledFor: string
+  duration: string
+  agenda: string
+  participants: string
 }
 
 const LEGACY_MEETINGS_STORAGE_KEY = 'intellmeet-meetings'
@@ -65,14 +67,25 @@ function writeMeetings(meetings: StoredMeeting[]) {
   localStorage.setItem(MEETINGS_STORAGE_KEY, JSON.stringify(meetings))
 }
 
-function createMeeting(host: string) {
+type MeetingFormValues = {
+  title: string
+  type: string
+  scheduledFor: string
+  duration: string
+  agenda: string
+  participants: string
+  recording: string
+  status: StoredMeeting['status']
+}
+
+function createMeeting(host: string, values?: Partial<MeetingFormValues>) {
   const code = Math.random().toString(36).slice(2, 10)
   const meeting: StoredMeeting = {
     id: crypto.randomUUID(),
-    title: 'Instant Meeting',
+    title: values?.title?.trim() || 'Instant Meeting',
     code,
     host,
-    status: 'Live',
+    status: values?.status ?? 'Live',
     createdAt: new Date().toLocaleString([], {
       year: 'numeric',
       month: 'short',
@@ -80,7 +93,12 @@ function createMeeting(host: string) {
       hour: '2-digit',
       minute: '2-digit',
     }),
-    recording: 'Recording will appear here after the meeting ends',
+    recording: values?.recording ?? 'Recording will appear here after the meeting ends',
+    type: values?.type ?? 'Instant',
+    scheduledFor: values?.scheduledFor ?? 'Starts now',
+    duration: values?.duration ?? '30 minutes',
+    agenda: values?.agenda?.trim() || 'No agenda added',
+    participants: values?.participants?.trim() || 'No participants added',
   }
   const meetings = [meeting, ...readMeetings()]
   writeMeetings(meetings)
@@ -88,12 +106,6 @@ function createMeeting(host: string) {
 }
 
 function HomePage() {
-  const { user } = useAuth()
-
-  if (user) {
-    return <Navigate to="/workspace" replace />
-  }
-
   return (
     <div className="relative overflow-hidden bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#eef6ff_55%,#ffffff_100%)]">
       <div className="absolute inset-x-0 top-0 z-0 h-136 bg-[linear-gradient(135deg,rgba(37,99,235,0.12),transparent_40%,rgba(14,165,233,0.12))]" />
@@ -141,12 +153,12 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[#f7fbf8] text-slate-900">
-      <div className="grid min-h-screen lg:grid-cols-[17rem_1fr]">
+      <div className="grid min-h-screen lg:grid-cols-[20rem_1fr]">
         <aside className="flex border-b border-emerald-100 bg-white lg:min-h-screen lg:flex-col lg:border-b-0 lg:border-r">
           <div className="flex w-full items-center justify-between gap-4 px-5 py-4 lg:block lg:px-6">
-            <Link to="/workspace" className="flex items-end gap-3">
-              <img src={logo} alt="IntellMeet logo" className="h-20 w-20 object-contain" />
-              <span className="-ml-1 pb-5 text-2xl font-bold tracking-normal text-slate-950">IntellMeet</span>
+            <Link to="/" className="flex items-end gap-0">
+              <img src={logo} alt="IntellMeet logo" className="h-12 w-12 scale-150 object-contain sm:h-14 sm:w-14" />
+              <img src={wordmark} alt="IntellMeet" className="mb-px h-11 w-47 object-contain" />
             </Link>
             <div className="flex items-center gap-0 lg:hidden">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
@@ -196,8 +208,9 @@ function WorkspaceFrame({ children }: { children: ReactNode }) {
 
 function DashboardHome() {
   const { user } = useAuth()
-  const navigate = useNavigate()
   const [meetings, setMeetings] = useState(() => readMeetings())
+  const [isMeetingDrawerOpen, setIsMeetingDrawerOpen] = useState(false)
+  const [drawerDefaultType, setDrawerDefaultType] = useState('Instant')
 
   if (!user) {
     return null
@@ -207,10 +220,17 @@ function DashboardHome() {
   const firstName = currentUser.name.split(/\s+/)[0] || currentUser.name
   const initials = getInitials(currentUser.name, currentUser.email)
 
-  function handleNewMeeting() {
-    const meeting = createMeeting(currentUser.name)
+  function handleOpenMeetingDrawer(defaultType = 'Instant') {
+    setDrawerDefaultType(defaultType)
+    setIsMeetingDrawerOpen(true)
+  }
+
+  function handleCreateMeeting(values: MeetingFormValues) {
+    const meeting = createMeeting(currentUser.name, {
+      ...values,
+      scheduledFor: values.scheduledFor || (values.status === 'Live' ? 'Starts now' : 'Not selected'),
+    })
     setMeetings((currentMeetings) => [meeting, ...currentMeetings])
-    navigate('/meetings')
   }
 
   const activeMeetingCount = meetings.filter((meeting) => meeting.status === 'Live').length
@@ -229,12 +249,12 @@ function DashboardHome() {
 
   return (
     <div className="min-h-screen bg-[#f7fbf8] text-slate-900">
-      <div className="grid min-h-screen lg:grid-cols-[17rem_1fr]">
+      <div className="grid min-h-screen lg:grid-cols-[20rem_1fr]">
         <aside className="flex border-b border-emerald-100 bg-white lg:min-h-screen lg:flex-col lg:border-b-0 lg:border-r">
           <div className="flex w-full items-center justify-between gap-4 px-5 py-4 lg:block lg:px-6">
-            <Link to="/" className="flex items-end gap-3">
-              <img src={logo} alt="IntellMeet logo" className="h-20 w-20 object-contain" />
-              <span className="-ml-1 pb-5 text-2xl font-bold  tracking-normal text-slate-950">IntellMeet</span>
+            <Link to="/" className="flex items-end gap-0">
+              <img src={logo} alt="IntellMeet logo" className="h-12 w-12 scale-150 object-contain sm:h-14 sm:w-14" />
+              <img src={wordmark} alt="IntellMeet" className="mb-px h-11 w-47 object-contain" />
             </Link>
             <div className="flex items-center gap-0 lg:hidden">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
@@ -281,12 +301,12 @@ function DashboardHome() {
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Workspace</p>
               <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
-                Welcome back, {firstName}
+                Welcome, {firstName} !
               </h1>
             </div>
             <button
               type="button"
-              onClick={handleNewMeeting}
+              onClick={() => handleOpenMeetingDrawer()}
               className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
             >
               + New Meeting
@@ -296,7 +316,7 @@ function DashboardHome() {
           <div className="px-5 py-6 sm:px-8 lg:px-10">
             <p className="text-sm font-medium text-slate-500">Here's what's happening with your workspace today.</p>
 
-            <section className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="mt-7 grid gap-4 md:grid-cols-3">
               {dashboardStats.map((card) => (
                 <article key={card.label} className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
                   <div className="flex items-start justify-between gap-4">
@@ -321,7 +341,13 @@ function DashboardHome() {
                     <button
                       type="button"
                       key={action.title}
-                      onClick={action.title === 'Start Instant Meeting' ? handleNewMeeting : undefined}
+                      onClick={
+                        action.title === 'Start Instant Meeting'
+                          ? () => handleOpenMeetingDrawer('Instant')
+                          : action.title === 'Schedule Meeting'
+                            ? () => handleOpenMeetingDrawer('Scheduled')
+                            : undefined
+                      }
                       className={`flex w-full items-center gap-4 rounded-2xl px-4 py-4 text-left transition hover:scale-[1.01] ${action.tone}`}
                     >
                       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/75">
@@ -349,7 +375,7 @@ function DashboardHome() {
                         </p>
                         <p className="mt-3 text-xs font-medium text-slate-400">Started: {meeting.createdAt}</p>
                       </div>
-                      <span className="text-2xl text-slate-300">›</span>
+                      <span className="text-2xl text-slate-300">â€º</span>
                     </article>
                   ))}
                 </div>
@@ -357,7 +383,173 @@ function DashboardHome() {
             </section>
           </div>
         </main>
+        {isMeetingDrawerOpen && (
+          <MeetingDetailsDrawer
+            defaultType={drawerDefaultType}
+            onClose={() => setIsMeetingDrawerOpen(false)}
+            onCreate={handleCreateMeeting}
+          />
+        )}
       </div>
+    </div>
+  )
+}
+
+function MeetingDetailsDrawer({
+  defaultType = 'Instant',
+  onClose,
+  onCreate,
+}: {
+  defaultType?: string
+  onClose: () => void
+  onCreate: (values: MeetingFormValues) => void
+}) {
+  const [meetingTitle, setMeetingTitle] = useState('')
+  const [meetingType, setMeetingType] = useState(defaultType)
+  const [scheduledFor, setScheduledFor] = useState('')
+  const [duration, setDuration] = useState('30 minutes')
+  const [agenda, setAgenda] = useState('')
+  const [participants, setParticipants] = useState('')
+  const [recordMeeting, setRecordMeeting] = useState(true)
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    onCreate({
+      title: meetingTitle,
+      type: meetingType,
+      scheduledFor,
+      duration,
+      agenda,
+      participants,
+      status: meetingType === 'Scheduled' ? 'Scheduled' : 'Live',
+      recording: recordMeeting ? 'Recording enabled' : 'Recording disabled',
+    })
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/25" onClick={onClose}>
+      <aside
+        className="h-full w-full max-w-md overflow-y-auto border-l border-emerald-100 bg-white p-6 shadow-2xl shadow-emerald-950/10"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-emerald-100 pb-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">New Meeting</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-950">Meeting details</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl px-3 py-2 text-lg font-bold text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+            aria-label="Close meeting details"
+          >
+            x
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="mt-6 space-y-5">
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Meeting title</span>
+            <input
+              value={meetingTitle}
+              onChange={(event) => setMeetingTitle(event.target.value)}
+              placeholder="Weekly product sync"
+              className="mt-2 w-full rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">Type</span>
+              <select
+                value={meetingType}
+                onChange={(event) => setMeetingType(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              >
+                <option>Instant</option>
+                <option>Scheduled</option>
+                <option>Team Sync</option>
+                <option>Client Meeting</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-sm font-semibold text-slate-700">Duration</span>
+              <select
+                value={duration}
+                onChange={(event) => setDuration(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              >
+                <option>15 minutes</option>
+                <option>30 minutes</option>
+                <option>45 minutes</option>
+                <option>60 minutes</option>
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Date and time</span>
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(event) => setScheduledFor(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Participants</span>
+            <input
+              value={participants}
+              onChange={(event) => setParticipants(event.target.value)}
+              placeholder="teammate@company.com, client@company.com"
+              className="mt-2 w-full rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-slate-700">Agenda</span>
+            <textarea
+              value={agenda}
+              onChange={(event) => setAgenda(event.target.value)}
+              rows={4}
+              placeholder="Add topics, goals, or preparation notes"
+              className="mt-2 w-full resize-none rounded-xl border border-emerald-100 px-4 py-3 text-sm outline-none focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+            />
+          </label>
+
+          <label className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-3">
+            <span>
+              <span className="block text-sm font-semibold text-slate-800">Record meeting</span>
+              <span className="block text-xs font-medium text-slate-500">Store recording status with this meeting.</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={recordMeeting}
+              onChange={(event) => setRecordMeeting(event.target.checked)}
+              className="h-5 w-5 rounded border-emerald-200 text-emerald-600 focus:ring-emerald-500"
+            />
+          </label>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="submit"
+              className="flex-1 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+            >
+              Create Meeting
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </aside>
     </div>
   )
 }
@@ -365,6 +557,8 @@ function DashboardHome() {
 function WorkspaceMeetingsPage() {
   const { user } = useAuth()
   const [meetings, setMeetings] = useState(() => readMeetings())
+  const [isMeetingDrawerOpen, setIsMeetingDrawerOpen] = useState(false)
+  const [drawerDefaultType, setDrawerDefaultType] = useState('Instant')
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -372,8 +566,16 @@ function WorkspaceMeetingsPage() {
 
   const currentUser = user
 
-  function handleNewMeeting() {
-    const meeting = createMeeting(currentUser.name)
+  function handleOpenMeetingDrawer(defaultType = 'Instant') {
+    setDrawerDefaultType(defaultType)
+    setIsMeetingDrawerOpen(true)
+  }
+
+  function handleCreateMeeting(values: MeetingFormValues) {
+    const meeting = createMeeting(currentUser.name, {
+      ...values,
+      scheduledFor: values.scheduledFor || (values.status === 'Live' ? 'Starts now' : 'Not selected'),
+    })
     setMeetings((currentMeetings) => [meeting, ...currentMeetings])
   }
 
@@ -395,7 +597,7 @@ function WorkspaceMeetingsPage() {
           </div>
           <button
             type="button"
-            onClick={handleNewMeeting}
+            onClick={() => handleOpenMeetingDrawer()}
             className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
           >
             + New Meeting
@@ -435,6 +637,23 @@ function WorkspaceMeetingsPage() {
                       <p className="text-xs font-bold uppercase text-slate-400">Recording</p>
                       <p className="mt-1 font-bold text-slate-800">{meeting.recording}</p>
                     </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Type</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.type}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">When</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.scheduledFor}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Duration</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.duration}</p>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-3 sm:col-span-3">
+                      <p className="text-xs font-bold uppercase text-slate-400">Agenda</p>
+                      <p className="mt-1 font-bold text-slate-800">{meeting.agenda}</p>
+                      <p className="mt-2 text-xs font-semibold text-slate-400">Participants: {meeting.participants}</p>
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -448,6 +667,13 @@ function WorkspaceMeetingsPage() {
             ))}
           </div>
         </section>
+        {isMeetingDrawerOpen && (
+          <MeetingDetailsDrawer
+            defaultType={drawerDefaultType}
+            onClose={() => setIsMeetingDrawerOpen(false)}
+            onCreate={handleCreateMeeting}
+          />
+        )}
       </>
     </WorkspaceFrame>
   )
@@ -584,7 +810,8 @@ type ScheduleColumnId = (typeof scheduleColumns)[number]['id']
 type ScheduleTask = {
   id: string
   title: string
-  details: string
+  note: string
+  dueAt: string
   columnId: ScheduleColumnId
   createdAt: number
 }
@@ -624,7 +851,8 @@ function SchedulePage() {
   const { user } = useAuth()
   const [tasks, setTasks] = useState<ScheduleTask[]>([])
   const [taskTitle, setTaskTitle] = useState('')
-  const [taskDetails, setTaskDetails] = useState('')
+  const [taskNote, setTaskNote] = useState('')
+  const [taskDueAt, setTaskDueAt] = useState('')
   const [targetColumn, setTargetColumn] = useState<ScheduleColumnId>('todo')
   const [sortOrders, setSortOrders] = useState<Record<ScheduleColumnId, ScheduleSortOrder>>({
     todo: 'newest',
@@ -648,14 +876,16 @@ function SchedulePage() {
       {
         id: crypto.randomUUID(),
         title: taskTitle.trim(),
-        details: taskDetails.trim(),
+        note: taskNote.trim(),
+        dueAt: taskDueAt,
         columnId: targetColumn,
         createdAt: Date.now(),
       },
       ...currentTasks,
     ])
     setTaskTitle('')
-    setTaskDetails('')
+    setTaskNote('')
+    setTaskDueAt('')
     setTargetColumn('todo')
   }
 
@@ -706,26 +936,42 @@ function SchedulePage() {
             </div>
           </div>
 
-          <form onSubmit={handleAddTask} className="mt-6 grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 sm:grid-cols-[1fr_1fr_auto]">
-            <input
-              type="text"
-              value={taskTitle}
-              onChange={(event) => setTaskTitle(event.target.value)}
-              placeholder="Write a task or meeting title"
-              className="rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-            />
-            <input
-              type="text"
-              value={taskDetails}
-              onChange={(event) => setTaskDetails(event.target.value)}
-              placeholder="Add time, note, or detail"
-              className="rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
-            />
-            <div className="flex gap-2">
+          <form onSubmit={handleAddTask} className="mt-6 grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 xl:grid-cols-[1.1fr_1fr_1.1fr_auto_auto]">
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-emerald-700">Task</span>
+              <input
+                type="text"
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                placeholder="Write a task or meeting title"
+                className="mt-1.5 w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-emerald-700">Date and time</span>
+              <input
+                type="datetime-local"
+                value={taskDueAt}
+                onChange={(event) => setTaskDueAt(event.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-emerald-700">Note / detail</span>
+              <input
+                type="text"
+                value={taskNote}
+                onChange={(event) => setTaskNote(event.target.value)}
+                placeholder="Add notes or details"
+                className="mt-1.5 w-full rounded-xl border border-emerald-100 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase text-emerald-700">List</span>
               <select
                 value={targetColumn}
                 onChange={(event) => setTargetColumn(event.target.value as ScheduleColumnId)}
-                className="min-w-36 rounded-xl border border-emerald-100 bg-white px-3 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
+                className="mt-1.5 w-full min-w-36 rounded-xl border border-emerald-100 bg-white px-3 py-3 text-sm font-medium text-slate-700 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
               >
                 {scheduleColumns.map((column) => (
                   <option key={column.id} value={column.id}>
@@ -733,9 +979,11 @@ function SchedulePage() {
                   </option>
                 ))}
               </select>
+            </label>
+            <div className="flex items-end">
               <button
                 type="submit"
-                className="rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
+                className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-600/20 transition hover:bg-emerald-700"
               >
                 Add
               </button>
@@ -781,7 +1029,7 @@ function SchedulePage() {
                         className="rounded-lg px-2 py-1 text-sm font-bold text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
                         aria-label="Close sort menu"
                       >
-                        ×
+                        Ã—
                       </button>
                     </div>
                     <div className="mt-3 space-y-1">
@@ -835,7 +1083,17 @@ function SchedulePage() {
                         <span className="text-xs font-medium text-slate-400">Drag me</span>
                       </div>
                       <h3 className="text-base font-bold text-slate-950">{task.title}</h3>
-                      {task.details && <p className="mt-2 text-sm leading-6 text-slate-500">{task.details}</p>}
+                      {task.dueAt && (
+                        <p className="mt-2 text-xs font-bold uppercase tracking-wide text-emerald-700">
+                          {new Date(task.dueAt).toLocaleString([], {
+                            month: 'short',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      )}
+                      {task.note && <p className="mt-2 text-sm leading-6 text-slate-500">{task.note}</p>}
                     </article>
                   ))}
                 </div>
@@ -931,42 +1189,6 @@ function Layout() {
   )
 }
 
-function PlaceholderPage({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-20 h-20 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-        <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-      </div>
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-      <p className="text-slate-500 mt-1 text-sm">{description}</p>
-    </div>
-  )
-}
-
-function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const setAuth = useAuthStore(s => s.setAuth)
-  const setLoading = useAuthStore(s => s.setLoading)
-  const logout = useAuthStore(s => s.logout)
-
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const refreshRes = await apiService.refreshToken()
-        const accessToken = refreshRes.data?.accessToken
-        if (accessToken) {
-          apiService.setAccessToken(accessToken)
-          const meRes = await apiService.getMe()
-          if (meRes.data) { setAuth(meRes.data, accessToken); return }
-        }
-      } catch {}
-      logout()
-    }
-    initAuth()
-  }, [setAuth, setLoading, logout])
-
-  return <>{children}</>
-}
-
 function App() {
   return (
     <BrowserRouter>
@@ -978,3 +1200,4 @@ function App() {
 }
 
 export default App
+
