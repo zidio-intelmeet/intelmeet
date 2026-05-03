@@ -1,3 +1,4 @@
+import { useState, useEffect, type DragEvent, type FormEvent, type ReactNode } from 'react'
 ﻿import { useState, type DragEvent, type FormEvent, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
@@ -10,6 +11,11 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import MeetingRoom from './pages/MeetingRoom' 
+
+// ⚠️ Make sure these paths point to your actual files!
+import { useAuthStore } from './stores/authStore' 
+import { apiService } from './services/api'
 import logo from './assets/logowobg.png'
 import wordmark from './assets/intellmeet_wordmark.png'
 
@@ -375,6 +381,7 @@ function DashboardHome() {
                         </p>
                         <p className="mt-3 text-xs font-medium text-slate-400">Started: {meeting.createdAt}</p>
                       </div>
+                      <Link to={`/meeting/${meeting.code}`} className="text-2xl text-slate-300 hover:text-emerald-600 transition">›</Link>
                       <span className="text-2xl text-slate-300">â€º</span>
                     </article>
                   ))}
@@ -557,6 +564,7 @@ function MeetingDetailsDrawer({
 function WorkspaceMeetingsPage() {
   const { user } = useAuth()
   const [meetings, setMeetings] = useState(() => readMeetings())
+  const navigate = useNavigate()
   const [isMeetingDrawerOpen, setIsMeetingDrawerOpen] = useState(false)
   const [drawerDefaultType, setDrawerDefaultType] = useState('Instant')
 
@@ -655,13 +663,22 @@ function WorkspaceMeetingsPage() {
                       <p className="mt-2 text-xs font-semibold text-slate-400">Participants: {meeting.participants}</p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteMeeting(meeting.id)}
-                    className="self-start rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50 lg:self-center"
-                  >
-                    Delete
-                  </button>
+                  <div className="flex gap-2 self-start lg:self-center">
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/meeting/${meeting.code}`)}
+                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      Join Room
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMeeting(meeting.id)}
+                      className="rounded-xl border border-rose-200 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </article>
             ))}
@@ -1184,20 +1201,54 @@ function Layout() {
         <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/settings" element={<WorkspaceSettingsPage />} />
+        
+        <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
       </Routes>
     </>
   )
+}
+function AuthInitializer({ children }: { children: React.ReactNode }) {
+  const setAuth = useAuthStore(s => s.setAuth)
+  const logout = useAuthStore(s => s.logout)
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const refreshRes = await apiService.refreshToken()
+        const accessToken = refreshRes.data?.accessToken
+        
+        if (accessToken) {
+          apiService.setAccessToken(accessToken)
+          const meRes = await apiService.getMe()
+          if (meRes.data) {
+            setAuth(meRes.data, accessToken)
+            return
+          }
+        }
+      } catch (error) {
+        // 🤫 Silent failure: If no token is found, we just stay logged out.
+        console.log("No active session found. Please log in.");
+      }
+      logout()
+    }
+    initAuth()
+  }, [setAuth, logout])
+
+  return <>{children}</>
 }
 
 function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Layout />
+        <AuthInitializer>
+          <Layout />
+        </AuthInitializer>
       </AuthProvider>
     </BrowserRouter>
   )
 }
 
+export default App
 export default App
 

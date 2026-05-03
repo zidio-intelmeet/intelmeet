@@ -142,7 +142,18 @@ class ApiService {
   async login(email: string, password: string) { return this.request<LoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); }
   async getMe() { return this.request<AuthUser>('/api/auth/me', { method: 'GET' }); }
   async logout() { const r = await this.request('/api/auth/logout', { method: 'POST' }); this.accessToken = null; return r; }
-  async refreshToken() { return this.request<RefreshResponse>('/api/auth/refresh', { method: 'POST' }); }
+  
+  // 🚀 Modified: Fails silently if user is just logged out
+  async refreshToken(): Promise<{ data?: { accessToken: string } }> { 
+    try {
+      const response = await fetch(`${this.baseUrl}/api/auth/refresh`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
+      if (!response.ok) return {}; 
+      return response.json();
+    } catch {
+      return {};
+    }
+  }
+
   googleLogin(tenantId = 'public') { window.location.href = `${this.baseUrl}/api/auth/google?tenantId=${tenantId}`; }
 
   // ─── Organizations ─────────────────────────────────────────
