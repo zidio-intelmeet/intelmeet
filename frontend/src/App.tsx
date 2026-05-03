@@ -921,7 +921,7 @@ function Layout() {
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
-<<<<<<< Updated upstream
+
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
         <Route path="/schedule" element={<SchedulePage />} />
@@ -970,15 +970,9 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
-<<<<<<< Updated upstream
       <AuthProvider>
         <Layout />
       </AuthProvider>
-=======
-      <AuthInitializer>
-        <Layout />
-      </AuthInitializer>
->>>>>>> Stashed changes
     </BrowserRouter>
   )
 }

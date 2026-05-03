@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-<<<<<<< Updated upstream
+
 import { useAuth } from '../context/auth'
 import { findCredential } from '../lib/authCredentials'
 
@@ -21,9 +21,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<LoginErrors>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  function handleGoogleLogin() {
+    // TODO: Implement Google OAuth login
+    console.log('Google login not yet implemented')
+  }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setIsSubmitting(true)
     const trimmedEmail = email.trim()
     const nextErrors: LoginErrors = {}
 
@@ -42,6 +49,7 @@ export default function LoginPage() {
     setErrors(nextErrors)
 
     if (Object.keys(nextErrors).length > 0) {
+      setIsSubmitting(false)
       return
     }
 
@@ -49,12 +57,14 @@ export default function LoginPage() {
 
     if (!credential || credential.password !== password) {
       setErrors({ form: 'Sign up first, then log in with the same email and password.' })
+      setIsSubmitting(false)
       return
     }
 
     login(credential)
 
     setPassword('')
+    setIsSubmitting(false)
     navigate('/workspace')
   }
 
@@ -85,21 +95,7 @@ export default function LoginPage() {
             <p className="text-slate-500 mt-1.5 text-sm">Log in to your IntellMeet workspace</p>
           </div>
 
-<<<<<<< Updated upstream
           <form className="space-y-5" noValidate onSubmit={handleSubmit}>
-=======
-          {/* Error display */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
-              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
->>>>>>> Stashed changes
 
             {/* Email */}
             <div>
@@ -114,7 +110,6 @@ export default function LoginPage() {
                   id="login-email"
                   type="email"
                   value={email}
-<<<<<<< Updated upstream
                   onChange={(event) => {
                     setEmail(event.target.value)
                     setErrors((currentErrors) => ({ ...currentErrors, email: undefined }))
@@ -122,12 +117,6 @@ export default function LoginPage() {
                   placeholder="you@company.com"
                   aria-invalid={Boolean(errors.email)}
                   className={`w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring ${errors.email ? 'border-rose-300' : ''}`}
-=======
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring"
-                  disabled={isSubmitting}
->>>>>>> Stashed changes
                 />
               </div>
               {errors.email && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.email}</p>}
@@ -143,7 +132,6 @@ export default function LoginPage() {
                   </svg>
                 </span>
                 <input
-<<<<<<< Updated upstream
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(event) => {
@@ -157,19 +145,6 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((isVisible) => !isVisible)}
-=======
-                  id="login-password"
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-11 py-3 rounded-xl border bg-white/70 text-slate-900 text-sm placeholder-slate-400 transition-all duration-200 input-ring"
-                  disabled={isSubmitting}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
->>>>>>> Stashed changes
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
