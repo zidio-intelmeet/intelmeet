@@ -183,13 +183,12 @@ export const googleCallback = AsyncHandler(
     });
 
     // Set both access token and refresh token as HttpOnly cookies
-    setRefreshCookie(res, tokens.refreshToken);
-    res.cookie("accessToken", tokens.accessToken, {
-      httpOnly: true,
-      secure: env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    });
+  res.cookie("refreshToken", tokens, {
+  httpOnly: true,
+  secure: false, // Set to true only in production (HTTPS)
+  sameSite: "lax", // Crucial for localhost port sharing
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+});
 
     // Redirect to auth success page with minimal info (only tenantId)
     res.redirect(`${env.CORS_ORIGIN}/auth/success?tenantId=${encodeURIComponent(tenantId)}`);
