@@ -88,11 +88,21 @@ class ApiService {
   private accessToken: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
 
-  constructor() { this.baseUrl = API_URL; }
+  constructor() { 
+    this.baseUrl = API_URL;
+  }
 
-  setAccessToken(token: string | null) { this.accessToken = token; }
-  getAccessToken(): string | null { return this.accessToken; }
-  getBaseUrl(): string { return this.baseUrl; }
+  setAccessToken(token: string | null) { 
+    this.accessToken = token; 
+  }
+
+  getAccessToken(): string | null { 
+    return this.accessToken; 
+  }
+
+  getBaseUrl(): string { 
+    return this.baseUrl; 
+  }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     const url = `${this.baseUrl}${endpoint}`;
@@ -100,40 +110,91 @@ class ApiService {
       'Content-Type': 'application/json',
       ...(options.headers as Record<string, string> || {}),
     };
-    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
-
-    const response = await fetch(url, { ...options, headers, credentials: 'include' });
-
-    if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
-      const newToken = await this.tryRefreshToken();
-      if (newToken) {
-        headers['Authorization'] = `Bearer ${newToken}`;
-        const retryResponse = await fetch(url, { ...options, headers, credentials: 'include' });
-        const retryData = await retryResponse.json() as ApiResponse<T>;
-        if (!retryResponse.ok) throw new ApiError(retryData.message || 'Request failed', retryResponse.status);
-        return retryData;
-      }
-      throw new ApiError('Session expired. Please login again.', 401);
+    
+    // Add access token to Authorization header if available
+    if (this.accessToken) {
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
-    const data = await response.json() as ApiResponse<T>;
-    if (!response.ok) throw new ApiError(data.message || 'API request failed', response.status, data.errors);
-    return data;
+    try {
+      // credentials: 'include' ensures cookies are sent with request (refresh token in httpOnly cookie)
+      const response = await fetch(url, { 
+        ...options, 
+        headers, 
+        credentials: 'include' // CRITICAL: Sends httpOnly cookies with every request
+      });
+
+      // Handle 401 - try to refresh token
+      if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
+        const newToken = await this.tryRefreshToken();
+        if (newToken) {
+          // Retry request with new token
+          headers['Authorization'] = `Bearer ${newToken}`;
+          const retryResponse = await fetch(url, { 
+            ...options, 
+            headers, 
+            credentials: 'include' 
+          });
+          
+          if (retryResponse.ok) {
+            const retryData = await retryResponse.json() as ApiResponse<T>;
+            return retryData;
+          } else if (retryResponse.status === 401) {
+            // Still 401 after refresh - logout
+            throw new ApiError('Session expired. Please login again.', 401);
+          }
+        }
+        throw new ApiError('Session expired. Please login again.', 401);
+      }
+
+      const data = await response.json() as ApiResponse<T>;
+      if (!response.ok) {
+        throw new ApiError(data.message || 'API request failed', response.status, data.errors);
+      }
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError('Network error', 0, error);
+    }
   }
 
   private async tryRefreshToken(): Promise<string | null> {
-    if (this.refreshPromise) return this.refreshPromise;
+    // Prevent multiple refresh attempts simultaneously
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
     this.refreshPromise = (async () => {
       try {
-        const response = await fetch(`${this.baseUrl}/api/auth/refresh`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
-        if (!response.ok) { this.accessToken = null; return null; }
+        // Browser automatically sends refresh token cookie with credentials: 'include'
+        const response = await fetch(`${this.baseUrl}/api/auth/refresh`, { 
+          method: 'POST', 
+          credentials: 'include', // CRITICAL: Sends httpOnly refresh token cookie
+          headers: { 'Content-Type': 'application/json' } 
+        });
+
+        if (!response.ok) {
+          this.accessToken = null;
+          return null;
+        }
+
         const data = await response.json() as ApiResponse<RefreshResponse>;
         const newToken = data.data?.accessToken || null;
-        this.accessToken = newToken;
+        if (newToken) {
+          this.accessToken = newToken;
+        }
         return newToken;
-      } catch { this.accessToken = null; return null; }
-      finally { this.refreshPromise = null; }
+      } catch (error) {
+        console.error('Token refresh failed:', error);
+        this.accessToken = null;
+        return null;
+      } finally {
+        this.refreshPromise = null;
+      }
     })();
+
     return this.refreshPromise;
   }
 
@@ -159,6 +220,8 @@ class ApiService {
   // ─── Organizations ─────────────────────────────────────────
   async createOrganization(name: string) { return this.request<OrganizationData>('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) }); }
   async getMyOrganization() { return this.request<OrganizationData | null>('/api/organizations/me', { method: 'GET' }); }
+  async getOrganizations() { return this.request<OrganizationData[]>('/api/organizations', { method: 'GET' }); }
+  async addMember(orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member', name?: string) { return this.request<OrganizationData>(`/api/organizations/${orgId}/members`, { method: 'POST', body: JSON.stringify({ email, role, name }) }); }
   async inviteMember(orgId: string, email: string, role: 'admin' | 'member' = 'member') { return this.request<OrganizationData>(`/api/organizations/${orgId}/invite`, { method: 'POST', body: JSON.stringify({ email, role }) }); }
   async acceptInvitation() { return this.request<OrganizationData>('/api/organizations/accept-invite', { method: 'POST' }); }
   async removeMember(orgId: string, memberId: string) { return this.request(`/api/organizations/${orgId}/members/${memberId}`, { method: 'DELETE' }); }

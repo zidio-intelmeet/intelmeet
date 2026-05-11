@@ -11,7 +11,13 @@ import healthRoutes from "./routes/health.routes";
 import { apiRateLimiter } from "./middlewares/rate-limiter";
 import { attachTenantContext } from "./middlewares/tenant.middleware";
 import authRoutes from "./routes/auth.routes";
-import meetingRoutes from "./routes/meeting.routes"; 
+import meetingRoutes from "./routes/meeting.routes";
+import aiRoutes from "./routes/ai.routes";
+import transcriptRoutes from "./routes/transcript.routes";
+import taskRoutes from "./routes/task.routes";
+import notificationRoutes from "./routes/notification.routes";
+import organizationRoutes from "./routes/organization.routes";
+import invitationRoutes from "./routes/invitation.routes"; 
 import sourceMapSupport from "source-map-support";
 sourceMapSupport.install();
 import env from "./configs/env";
@@ -25,7 +31,9 @@ app.use(express.urlencoded({ extended: true }));
 const allowedOrigins = [
   env.CORS_ORIGIN, 
   "http://localhost:5173", 
-  "http://127.0.0.1:5173"
+  "http://localhost:5174",  // Support both ports for dev flexibility
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174"
 ].filter(Boolean);
 
 app.use(
@@ -78,7 +86,13 @@ app.get("/", (req: Request, res: Response) => {
 app.use("/api/v1/health", healthRoutes);
 app.use("/api/v1", apiRateLimiter);
 app.use("/api/auth", authRoutes);
-app.use("/api/meetings", meetingRoutes); 
+app.use("/api/meetings", meetingRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/transcripts", transcriptRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/organizations", organizationRoutes);
+app.use("/api/invitations", invitationRoutes); 
 
 // Not found handler (should be after routes)
 app.use(notFoundHandler);

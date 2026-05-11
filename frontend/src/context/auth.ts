@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react'
 
 export type AuthUser = {
+  id?: string
+  tenantId?: string
   name: string
   email: string
   phone?: string
@@ -11,9 +13,14 @@ export type AuthUser = {
 
 export type AuthContextValue = {
   user: AuthUser | null
-  login: (user: AuthUser) => void
-  updateProfile: (profile: Partial<AuthUser>) => void
-  logout: () => void
+  // Real login - sends credentials to backend
+  login: (email: string, password: string) => Promise<void>
+  // Real register - sends user details to backend
+  register: (name: string, email: string, password: string) => Promise<void>
+  // Update profile after login
+  updateProfile: (profile: Partial<AuthUser>) => Promise<void> | void
+  // Logout and clear auth state
+  logout: () => Promise<void>
 }
 
 export const AUTH_STORAGE_KEY = 'intellmeet-user'

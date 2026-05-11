@@ -2,7 +2,6 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../context/auth'
-import { findCredential } from '../lib/authCredentials'
 
 type LoginErrors = {
   email?: string
@@ -31,6 +30,8 @@ export default function LoginPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSubmitting(true)
+    setErrors({})
+    
     const trimmedEmail = email.trim()
     const nextErrors: LoginErrors = {}
 
@@ -46,26 +47,24 @@ export default function LoginPage() {
       nextErrors.password = 'Password must be at least 8 characters.'
     }
 
-    setErrors(nextErrors)
-
     if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
       setIsSubmitting(false)
       return
     }
 
-    const credential = findCredential(trimmedEmail)
-
-    if (!credential || credential.password !== password) {
-      setErrors({ form: 'Sign up first, then log in with the same email and password.' })
-      setIsSubmitting(false)
-      return
-    }
-
-    login(credential)
-
-    setPassword('')
-    setIsSubmitting(false)
-    navigate('/workspace')
+    // Call real backend login
+    login(trimmedEmail, password)
+      .then(() => {
+        setPassword('')
+        navigate('/workspace')
+      })
+      .catch((error) => {
+        setErrors({ form: error instanceof Error ? error.message : 'Login failed. Please try again.' })
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
   }
 
   return (

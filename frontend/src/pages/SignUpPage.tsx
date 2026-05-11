@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { findCredential, saveCredential } from '../lib/authCredentials'
+import { useAuth } from '../context/auth'
 
 type SignUpErrors = {
   firstName?: string
+  lastName?: string
   email?: string
   password?: string
   confirmPassword?: string
@@ -21,6 +22,7 @@ function isStrongPassword(password: string) {
 
 export default function SignUpPage() {
   const navigate = useNavigate()
+  const { register } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -40,6 +42,7 @@ export default function SignUpPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setIsSubmitting(true)
+    setErrors({})
     const trimmedFirstName = firstName.trim()
     const trimmedLastName = lastName.trim()
     const trimmedEmail = email.trim()
@@ -49,6 +52,10 @@ export default function SignUpPage() {
       nextErrors.firstName = 'First name is required.'
     } else if (trimmedFirstName.length < 2) {
       nextErrors.firstName = 'First name must be at least 2 characters.'
+    }
+
+    if (trimmedLastName && trimmedLastName.length < 2) {
+      nextErrors.lastName = 'Last name must be at least 2 characters.'
     }
 
     if (!trimmedEmail) {
@@ -73,27 +80,26 @@ export default function SignUpPage() {
       nextErrors.terms = 'Please accept the terms and privacy policy.'
     }
 
-    if (trimmedEmail && findCredential(trimmedEmail)) {
-      nextErrors.email = 'An account with this email already exists. Log in with this email.'
-    }
-
-    setErrors(nextErrors)
-
     if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
       setIsSubmitting(false)
       return
     }
 
-    saveCredential({
-      name: `${trimmedFirstName} ${trimmedLastName}`.trim(),
-      email: trimmedEmail,
-      password,
-    })
-
-    setPassword('')
-    setConfirmPassword('')
-    setIsSubmitting(false)
-    navigate('/login')
+    // Call real backend registration
+    const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim()
+    register(fullName, trimmedEmail, password)
+      .then(() => {
+        setPassword('')
+        setConfirmPassword('')
+        navigate('/workspace')
+      })
+      .catch((error) => {
+        setErrors({ form: error instanceof Error ? error.message : 'Registration failed. Please try again.' })
+      })
+      .finally(() => {
+        setIsSubmitting(false)
+      })
   }
 
   return (

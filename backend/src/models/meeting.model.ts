@@ -11,6 +11,17 @@ export interface Meeting extends Document {
   status: "Scheduled" | "Ongoing" | "Completed" | "Cancelled";
   scheduledStartTime: Date;
   scheduledEndTime: Date;
+  actualStartTime: Date | null;
+  actualEndTime: Date | null;
+  transcript: string | null;
+  summary: string | null;
+  actionItems: Array<{
+    title: string;
+    assignee: mongoose.Types.ObjectId;
+    dueDate: Date | null;
+    completed: boolean;
+  }>;
+  recordingUrl: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +73,48 @@ const meetingSchema = new Schema<Meeting>(
     scheduledEndTime: {
       type: Date,
       required: [true, "End time is required"],
+    },
+    actualStartTime: {
+      type: Date,
+      default: null,
+    },
+    actualEndTime: {
+      type: Date,
+      default: null,
+    },
+    transcript: {
+      type: String,
+      default: null,
+      maxLength: [100000, "Transcript too long"],
+    },
+    summary: {
+      type: String,
+      default: null,
+      maxLength: [5000, "Summary too long"],
+    },
+    actionItems: [
+      {
+        title: {
+          type: String,
+          required: true,
+        },
+        assignee: {
+          type: Schema.Types.ObjectId,
+          ref: "User",
+        },
+        dueDate: {
+          type: Date,
+          default: null,
+        },
+        completed: {
+          type: Boolean,
+          default: false,
+        },
+      },
+    ],
+    recordingUrl: {
+      type: String,
+      default: null,
     },
   },
   { timestamps: true }

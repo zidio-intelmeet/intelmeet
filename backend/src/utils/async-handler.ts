@@ -13,3 +13,6 @@ export function AsyncHandler(fn: AsyncRouteHandler) {
       .catch(next);
   };
 }
+
+// Export with lowercase name as well for compatibility
+export const asyncHandler = AsyncHandler;

@@ -1,6 +1,9 @@
 import { v2 as cloudinary } from "cloudinary";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
+// @ts-ignore - multer-storage-cloudinary doesn't have type definitions
+import CloudinaryStorage from "multer-storage-cloudinary";
 import multer from "multer";
+import type { Request } from "express";
+import type { Express } from "express";
 import env from "../configs/env";
 import { ApiError } from "../utils/api-error";
 
@@ -14,7 +17,7 @@ cloudinary.config({
 // 2. Set up the Cloudinary Storage engine for Multer
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
-  params: async (req, file) => {
+  params: async (req: any, file: any) => {
     // Determine the folder based on the user's tenant ID if possible,
     // otherwise default to a general profiles folder
     const folderName = req.tenantId ? `intellmeet/${req.tenantId}/profiles` : 'intellmeet/profiles';
