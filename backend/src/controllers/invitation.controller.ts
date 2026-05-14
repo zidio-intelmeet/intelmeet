@@ -47,14 +47,28 @@ export const acceptInvitation = asyncHandler(async (req: Request, res: Response)
     );
   }
 
-  // Add user to organization with the role from invitation
+  // Check if invitation exists and is pending
+  const userEmail = (req as any).user?.email;
+  const invitationIndex = organization.invitations.findIndex(
+    (inv) => inv.email === userEmail && inv.status === "pending"
+  );
+
+  if (invitationIndex === -1) {
+    throw new ApiError(400, "Valid pending invitation not found for this email");
+  }
+
+  // Update invitation status to accepted and add to members
   const updated = await Organization.findByIdAndUpdate(
     payload.organizationId,
     {
+      $set: {
+        [`invitations.${invitationIndex}.status`]: "accepted",
+      },
       $push: {
         members: {
           userId,
           role: payload.role,
+          status: "active",
           joinedAt: new Date(),
         },
       },

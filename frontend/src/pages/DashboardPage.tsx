@@ -7,11 +7,11 @@ import { useNavigate } from 'react-router-dom';
 interface Meeting {
   _id: string;
   title: string;
-  status: 'scheduled' | 'live' | 'ended';
-  meetingCode: string;
+  status: 'Scheduled' | 'Ongoing' | 'Completed' | 'Cancelled';
+  meetingId: string;
   createdAt: string;
-  scheduledAt?: string;
-  startedAt?: string;
+  scheduledStartTime: string;
+  actualStartTime?: string;
 }
 
 export default function DashboardPage() {
@@ -37,9 +37,9 @@ export default function DashboardPage() {
     }
   };
 
-  const liveMeetings = meetings.filter((m) => m.status === 'live').length;
-  const scheduledMeetings = meetings.filter((m) => m.status === 'scheduled').length;
-  const endedMeetings = meetings.filter((m) => m.status === 'ended').length;
+  const liveMeetings = meetings.filter((m) => m.status === 'Ongoing').length;
+  const scheduledMeetings = meetings.filter((m) => m.status === 'Scheduled').length;
+  const endedMeetings = meetings.filter((m) => m.status === 'Completed').length;
   const recentMeetings = meetings.slice(0, 3);
 
   const quickStats = [
@@ -134,45 +134,61 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h2>
           <div className="space-y-3">
-            <button
-              onClick={() => navigate('/meetings')}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center transition-colors">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-900">Start Instant Meeting</p>
-                <p className="text-xs text-slate-500">Begin a video call right now</p>
-              </div>
-            </button>
+            {user?.role === 'Admin' && (
+              <>
+                <button
+                  onClick={() => navigate('/meetings')}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 group-hover:bg-indigo-200 flex items-center justify-center transition-colors">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Start Instant Meeting</p>
+                    <p className="text-xs text-slate-500">Begin a video call right now</p>
+                  </div>
+                </button>
 
-            <button
-              onClick={() => navigate('/meetings')}
-              className="w-full flex items-center gap-3 p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors text-left group"
-            >
-              <div className="w-10 h-10 rounded-xl bg-emerald-100 group-hover:bg-emerald-200 flex items-center justify-center transition-colors">
-                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-900">Schedule Meeting</p>
-                <p className="text-xs text-slate-500">Plan a meeting for later</p>
-              </div>
-            </button>
+                <button
+                  onClick={() => navigate('/meetings')}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors text-left group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 group-hover:bg-emerald-200 flex items-center justify-center transition-colors">
+                    <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Schedule Meeting</p>
+                    <p className="text-xs text-slate-500">Plan a meeting for later</p>
+                  </div>
+                </button>
 
-            <button className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors text-left group">
-              <div className="w-10 h-10 rounded-xl bg-violet-100 group-hover:bg-violet-200 flex items-center justify-center transition-colors">
-                <svg className="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                <button onClick={() => navigate('/team')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors text-left group">
+                  <div className="w-10 h-10 rounded-xl bg-violet-100 group-hover:bg-violet-200 flex items-center justify-center transition-colors">
+                    <svg className="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-900">Invite Team Members</p>
+                    <p className="text-xs text-slate-500">Grow your workspace</p>
+                  </div>
+                </button>
+              </>
+            )}
+
+            <button onClick={() => navigate('/projects')} className="w-full flex items-center gap-3 p-3 rounded-xl bg-amber-50 hover:bg-amber-100 transition-colors text-left group">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 group-hover:bg-amber-200 flex items-center justify-center transition-colors">
+                <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
               <div>
-                <p className="text-sm font-medium text-slate-900">Invite Team Members</p>
-                <p className="text-xs text-slate-500">Grow your workspace</p>
+                <p className="text-sm font-medium text-slate-900">View Kanban Board</p>
+                <p className="text-xs text-slate-500">Manage your tasks and progress</p>
               </div>
             </button>
           </div>
@@ -199,16 +215,16 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2 mt-1">
                         <span
                           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            meeting.status === 'live'
+                            meeting.status === 'Ongoing'
                               ? 'bg-green-100 text-green-800'
-                              : meeting.status === 'scheduled'
+                              : meeting.status === 'Scheduled'
                               ? 'bg-blue-100 text-blue-800'
                               : 'bg-gray-100 text-gray-800'
                           }`}
                         >
-                          {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                          {meeting.status === 'Ongoing' ? 'Live' : meeting.status}
                         </span>
-                        <span className="text-xs text-slate-500">Code: {meeting.meetingCode}</span>
+                        <span className="text-xs text-slate-500">Code: {meeting.meetingId}</span>
                       </div>
                     </div>
                     <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -216,10 +232,10 @@ export default function DashboardPage() {
                     </svg>
                   </div>
                   <p className="text-xs text-slate-500 mt-2">
-                    {meeting.scheduledAt
-                      ? `Scheduled: ${format(new Date(meeting.scheduledAt), 'MMM dd, yyyy HH:mm')}`
-                      : meeting.startedAt
-                      ? `Started: ${format(new Date(meeting.startedAt), 'MMM dd, yyyy HH:mm')}`
+                    {meeting.scheduledStartTime
+                      ? `Scheduled: ${format(new Date(meeting.scheduledStartTime), 'MMM dd, yyyy HH:mm')}`
+                      : meeting.actualStartTime
+                      ? `Started: ${format(new Date(meeting.actualStartTime), 'MMM dd, yyyy HH:mm')}`
                       : `Created: ${format(new Date(meeting.createdAt), 'MMM dd, yyyy HH:mm')}`}
                   </p>
                 </div>

@@ -4,15 +4,25 @@ import { AddMemberModal } from '../components/org/AddMemberModal';
 import { useAuth } from '../context/auth';
 
 interface Member {
-  userId: { id: string; name: string; email: string };
+  userId: { _id: string; name: string; email: string };
   role: string;
+  status: string;
   joinedAt: string;
+}
+
+interface Invitation {
+  _id: string;
+  email: string;
+  role: string;
+  status: string;
+  invitedAt: string;
 }
 
 interface Organization {
   _id: string;
   name: string;
   members: Member[];
+  invitations: Invitation[];
 }
 
 export default function TeamsPage() {
@@ -86,12 +96,18 @@ export default function TeamsPage() {
   };
 
   const filteredMembers = organization?.members?.filter(member => 
-    member.userId.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.userId.email.toLowerCase().includes(searchQuery.toLowerCase())
+    member.userId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    member.userId?.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const filteredInvitations = organization?.invitations?.filter(inv =>
+    inv.email?.toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
   const recentMembers = filteredMembers.slice(0, 3);
 
+  const currentUserOrgRole = organization?.members?.find(m => m.userId?._id === user?.id)?.role;
+  const isAdmin = user?.role === 'Admin' || currentUserOrgRole === 'Admin';
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto space-y-6 flex items-center justify-center min-h-screen">
@@ -191,12 +207,14 @@ export default function TeamsPage() {
           </h1>
         </div>
 
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-semibold transition-colors"
-        >
-          Add Member
-        </button>
+        {isAdmin && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-semibold transition-colors"
+          >
+            Add Member
+          </button>
+        )}
       </div>
 
       {/* Main Layout */}
@@ -210,29 +228,37 @@ export default function TeamsPage() {
             </h2>
 
             <div className="space-y-3">
-              <button 
-                onClick={() => setIsModalOpen(true)}
-                className="w-full text-left bg-emerald-50 hover:bg-emerald-100 rounded-xl p-4 transition-colors"
-              >
-                <p className="font-semibold text-gray-900">Add Member</p>
-                <p className="text-sm text-gray-500">
-                  Invite people to workspace
-                </p>
-              </button>
+              {isAdmin ? (
+                <>
+                  <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="w-full text-left bg-emerald-50 hover:bg-emerald-100 rounded-xl p-4 transition-colors"
+                  >
+                    <p className="font-semibold text-gray-900">Add Member</p>
+                    <p className="text-sm text-gray-500">
+                      Invite people to workspace
+                    </p>
+                  </button>
 
-              <button className="w-full text-left hover:bg-gray-50 rounded-xl p-4 transition-colors cursor-not-allowed opacity-50">
-                <p className="font-semibold text-gray-900">Manage Roles</p>
-                <p className="text-sm text-gray-500">
-                  Update member permissions
-                </p>
-              </button>
+                  <button className="w-full text-left hover:bg-gray-50 rounded-xl p-4 transition-colors cursor-not-allowed opacity-50">
+                    <p className="font-semibold text-gray-900">Manage Roles</p>
+                    <p className="text-sm text-gray-500">
+                      Update member permissions
+                    </p>
+                  </button>
 
-              <button className="w-full text-left hover:bg-yellow-50 rounded-xl p-4 transition-colors cursor-not-allowed opacity-50">
-                <p className="font-semibold text-gray-900">Send Invite</p>
-                <p className="text-sm text-gray-500">
-                  Grow your workspace
-                </p>
-              </button>
+                  <button className="w-full text-left hover:bg-yellow-50 rounded-xl p-4 transition-colors cursor-not-allowed opacity-50">
+                    <p className="font-semibold text-gray-900">Send Invite</p>
+                    <p className="text-sm text-gray-500">
+                      Grow your workspace
+                    </p>
+                  </button>
+                </>
+              ) : (
+                <div className="p-4 text-center text-gray-500 text-sm">
+                  Only Admins can manage the workspace.
+                </div>
+              )}
             </div>
           </div>
 
@@ -245,7 +271,7 @@ export default function TeamsPage() {
             <div className="space-y-4">
               {recentMembers.length > 0 ? (
                 recentMembers.map((member, idx) => (
-                  <div key={member.userId.id} className="flex items-center gap-3">
+                  <div key={member.userId._id} className="flex items-center gap-3">
                     <div className={`w-10 h-10 ${getAvatarColor(idx)} rounded-full flex items-center justify-center text-white font-bold text-sm`}>
                       {getInitials(member.userId.name)}
                     </div>
@@ -284,30 +310,55 @@ export default function TeamsPage() {
           </div>
 
           {/* Member Rows */}
-          {filteredMembers.length > 0 ? (
-            filteredMembers.map((member, idx) => (
-              <div key={member.userId.id} className="grid grid-cols-4 items-center px-6 py-5 border-b border-gray-100 hover:bg-gray-50">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${getAvatarColor(idx)} rounded-full flex items-center justify-center text-white font-bold text-sm`}>
-                    {getInitials(member.userId.name)}
+          {filteredMembers.length > 0 || filteredInvitations.length > 0 ? (
+            <>
+              {filteredMembers.map((member, idx) => (
+                <div key={member.userId._id} className="grid grid-cols-4 items-center px-6 py-5 border-b border-gray-100 hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 ${getAvatarColor(idx)} rounded-full flex items-center justify-center text-white font-bold text-sm`}>
+                      {getInitials(member.userId.name)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">{member.userId.name}</p>
+                      <p className="text-sm text-gray-400">Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-gray-900">{member.userId.name}</p>
-                    <p className="text-sm text-gray-400">Joined {new Date(member.joinedAt).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
-                  </div>
+
+                  <p className="text-gray-600">{member.userId.email}</p>
+
+                  <span className={`${member.role === 'Admin' ? 'bg-blue-50 text-blue-700' : member.role === 'Member' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-700'} px-3 py-1 rounded-lg text-sm font-semibold w-fit`}>
+                    {member.role}
+                  </span>
+
+                  <span className="bg-green-50 text-green-700 px-3 py-1 rounded-lg text-sm font-semibold w-fit">
+                    Active
+                  </span>
                 </div>
+              ))}
+              {filteredInvitations.map((inv, idx) => (
+                <div key={inv._id} className="grid grid-cols-4 items-center px-6 py-5 border-b border-gray-100 hover:bg-gray-50 opacity-60">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 bg-slate-300 rounded-full flex items-center justify-center text-white font-bold text-sm`}>
+                      {inv.email.substring(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900 italic">Pending Invite</p>
+                      <p className="text-sm text-gray-400">Invited {new Date(inv.invitedAt).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}</p>
+                    </div>
+                  </div>
 
-                <p className="text-gray-600">{member.userId.email}</p>
+                  <p className="text-gray-600">{inv.email}</p>
 
-                <span className={`${member.role === 'Admin' ? 'bg-blue-50 text-blue-700' : member.role === 'Member' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-700'} px-3 py-1 rounded-lg text-sm font-semibold w-fit`}>
-                  {member.role}
-                </span>
+                  <span className={`${inv.role === 'Admin' ? 'bg-blue-50 text-blue-700' : inv.role === 'Member' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-50 text-gray-700'} px-3 py-1 rounded-lg text-sm font-semibold w-fit`}>
+                    {inv.role}
+                  </span>
 
-                <span className="bg-green-50 text-green-700 px-3 py-1 rounded-lg text-sm font-semibold w-fit">
-                  Active
-                </span>
-              </div>
-            ))
+                  <span className="bg-yellow-50 text-yellow-700 px-3 py-1 rounded-lg text-sm font-semibold w-fit border border-yellow-200">
+                    {inv.status}
+                  </span>
+                </div>
+              ))}
+            </>
           ) : (
             <div className="px-6 py-8 text-center text-gray-500">
               <p>No members found matching your search</p>

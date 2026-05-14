@@ -28,7 +28,7 @@ const taskSchema = new Schema<Task>(
     meetingId: {
       type: Schema.Types.ObjectId,
       ref: "Meeting",
-      required: [true, "Meeting ID is required"],
+      default: null,
     },
     title: {
       type: String,

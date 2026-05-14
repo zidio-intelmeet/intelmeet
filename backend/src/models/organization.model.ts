@@ -9,8 +9,16 @@ export interface Organization extends Document {
   owner: mongoose.Types.ObjectId; // User ID
   members: Array<{
     userId: mongoose.Types.ObjectId;
-    role: "Admin" | "Manager" | "Member";
+    role: "Admin" | "Member" | "Viewer";
+    status: "pending" | "active";
     joinedAt: Date;
+  }>;
+  invitations: Array<{
+    email: string;
+    role: "Admin" | "Member" | "Viewer";
+    invitedBy: mongoose.Types.ObjectId;
+    invitedAt: Date;
+    status: "pending" | "accepted" | "declined";
   }>;
   settings: {
     isPrivate: boolean;
@@ -63,13 +71,27 @@ const organizationSchema = new Schema<Organization>(
         },
         role: {
           type: String,
-          enum: ["Admin", "Manager", "Member"],
+          enum: ["Admin", "Member", "Viewer"],
           default: "Member",
+        },
+        status: {
+          type: String,
+          enum: ["pending", "active"],
+          default: "active",
         },
         joinedAt: {
           type: Date,
           default: Date.now,
         },
+      },
+    ],
+    invitations: [
+      {
+        email: { type: String, required: true, lowercase: true, trim: true },
+        role: { type: String, enum: ["Admin", "Member", "Viewer"], default: "Member" },
+        invitedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
+        invitedAt: { type: Date, default: Date.now },
+        status: { type: String, enum: ["pending", "accepted", "declined"], default: "pending" },
       },
     ],
     settings: {

@@ -15,8 +15,11 @@ const router = Router();
 router.use(requireAuth);
 router.use(apiRateLimiter);
 
-// GET /api/tasks/:meetingId - Get all tasks for a meeting
+// GET /api/tasks/meeting/:meetingId - Get all tasks for a meeting
 router.get("/meeting/:meetingId", getTasks);
+
+// GET /api/tasks - Get all tasks for the tenant
+router.get("/", getTasks);
 
 // GET /api/tasks/:taskId - Get single task
 router.get("/:taskId", getTaskById);

@@ -21,6 +21,7 @@ export const AcceptInvitationPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isAccepting, setIsAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
 
   const token = searchParams.get('token');
 
@@ -33,13 +34,14 @@ export const AcceptInvitationPage = () => {
           return;
         }
 
-        const response = await apiService.get(`/invitations/validate?token=${token}`);
-        if (response.success && response.data) {
+        const response = await apiService.validateInvitation(token);
+        if (response.data?.valid) {
           setInvitationData(response.data);
         } else {
           setError('Invalid or expired invitation');
         }
       } catch (err) {
+        console.error('Validation error:', err);
         setError('Failed to validate invitation. Please check the link and try again.');
       } finally {
         setIsLoading(false);
@@ -51,23 +53,25 @@ export const AcceptInvitationPage = () => {
 
   const handleAcceptInvitation = async () => {
     if (!user) {
-      // Redirect to login
       navigate('/login', { state: { returnTo: `/accept-invitation?token=${token}` } });
       return;
     }
 
+    if (!token) return;
+
     setIsAccepting(true);
     try {
-      const response = await apiService.post('/invitations/accept', { token });
-      if (response.success) {
-        // Auto-redirect to workspace
-        const organizationId = response.data.organizationId;
-        navigate(`/workspace?org=${organizationId}`);
+      const response = await apiService.acceptInvitation(token);
+      if (response.data?.organizationId) {
+        setSuccess(true);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 2000);
       } else {
         setError(response.message || 'Failed to accept invitation');
       }
-    } catch (err) {
-      setError('Failed to accept invitation. Please try again.');
+    } catch (err: any) {
+      setError(err?.message || 'Failed to accept invitation. Please try again.');
     } finally {
       setIsAccepting(false);
     }
@@ -79,6 +83,19 @@ export const AcceptInvitationPage = () => {
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Validating invitation...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="text-5xl mb-4">✅</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Aboard!</h1>
+          <p className="text-gray-600 mb-4">You've successfully joined the organization.</p>
+          <p className="text-sm text-gray-400">Redirecting to dashboard...</p>
         </div>
       </div>
     );

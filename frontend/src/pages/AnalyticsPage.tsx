@@ -13,13 +13,18 @@ export default function AnalyticsPage() {
   }, []);
 
   const total = meetings.length;
-  const live = meetings.filter(m => m.status === 'live').length;
-  const ended = meetings.filter(m => m.status === 'ended').length;
-  const scheduled = meetings.filter(m => m.status === 'scheduled').length;
-  const totalDuration = meetings.reduce((sum, m) => sum + (m.duration || 0), 0);
+  const live = meetings.filter(m => m.status === 'Ongoing').length;
+  const ended = meetings.filter(m => m.status === 'Completed').length;
+  const scheduled = meetings.filter(m => m.status === 'Scheduled').length;
+  const totalDuration = meetings.reduce((sum, m) => {
+    if (m.actualStartTime && m.actualEndTime) {
+      return sum + (new Date(m.actualEndTime).getTime() - new Date(m.actualStartTime).getTime()) / 1000;
+    }
+    return sum;
+  }, 0);
   const avgDuration = ended > 0 ? Math.round(totalDuration / ended / 60) : 0;
   const totalParticipants = meetings.reduce((sum, m) => sum + m.participants.length, 0);
-  const withAI = meetings.filter(m => m.summaryReady).length;
+  const withAI = meetings.filter(m => m.summary).length;
 
   const stats = [
     { label: 'Total Meetings', value: total, icon: '📹', color: 'bg-indigo-50 text-indigo-700' },
@@ -61,10 +66,10 @@ export default function AnalyticsPage() {
                 {meetings.slice(0, 10).map(m => (
                   <tr key={m._id} className="hover:bg-slate-50">
                     <td className="px-5 py-3 font-medium text-slate-900">{m.title}</td>
-                    <td className="px-5 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.status === 'live' ? 'bg-green-100 text-green-700' : m.status === 'ended' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>{m.status}</span></td>
+                    <td className="px-5 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${m.status === 'Ongoing' ? 'bg-green-100 text-green-700' : m.status === 'Completed' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-700'}`}>{m.status === 'Ongoing' ? 'Live' : m.status}</span></td>
                     <td className="px-5 py-3 text-slate-600">{m.participants.length}</td>
-                    <td className="px-5 py-3 text-slate-600">{m.duration ? `${Math.round(m.duration / 60)}m` : '—'}</td>
-                    <td className="px-5 py-3">{m.summaryReady ? <span className="text-green-600">✓</span> : <span className="text-slate-300">—</span>}</td>
+                    <td className="px-5 py-3 text-slate-600">{m.actualStartTime && m.actualEndTime ? `${Math.round((new Date(m.actualEndTime).getTime() - new Date(m.actualStartTime).getTime()) / 60000)}m` : '—'}</td>
+                    <td className="px-5 py-3">{m.summary ? <span className="text-green-600">✓</span> : <span className="text-slate-300">—</span>}</td>
                   </tr>
                 ))}
               </tbody>

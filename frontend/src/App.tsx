@@ -12,6 +12,9 @@ import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import AuthSuccessPage from './pages/AuthSuccessPage'
 import MeetingRoom from './pages/MeetingRoom'
+import VideoRoom from './pages/VideoRoom'
+import JoinMeeting from './pages/JoinMeeting'
+import MeetingsPage from './pages/MeetingsPage'
 import AcceptInvitationPage from './pages/AcceptInvitationPage' 
 
 // ⚠️ Make sure these paths point to your actual files!
@@ -1265,11 +1268,13 @@ function Layout() {
 
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/teams" element={<WorkspaceFrame><TeamsPage /></WorkspaceFrame>} />
-        <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
+        <Route path="/meetings" element={<WorkspaceFrame><MeetingsPage /></WorkspaceFrame>} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/settings" element={<WorkspaceSettingsPage />} />
         
         <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
+        <Route path="/dashboard/meetings/:meetingId/video" element={<VideoRoom />} />
+        <Route path="/meetings/:code/join" element={<JoinMeeting />} />
       </Routes>
     </>
   )

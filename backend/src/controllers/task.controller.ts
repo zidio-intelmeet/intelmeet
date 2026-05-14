@@ -11,7 +11,8 @@ export const getTasks = asyncHandler(async (req: Request, res: Response) => {
   const { status, assignee } = req.query;
   const tenantId = req.headers["x-tenant-id"] as string;
 
-  const filter: any = { tenantId, meetingId };
+  const filter: any = { tenantId };
+  if (meetingId) filter.meetingId = meetingId;
   if (status) filter.status = status;
   if (assignee) filter.assignee = assignee;
 
@@ -49,10 +50,12 @@ export const createTask = asyncHandler(async (req: Request, res: Response) => {
   const tenantId = req.headers["x-tenant-id"] as string;
   const userId = (req as any).user.id;
 
-  // Verify meeting exists
-  const meeting = await Meeting.findOne({ _id: meetingId, tenantId });
-  if (!meeting) {
-    throw new ApiError(404, "Meeting not found");
+  // Verify meeting exists if meetingId is provided
+  if (meetingId) {
+    const meeting = await Meeting.findOne({ _id: meetingId, tenantId });
+    if (!meeting) {
+      throw new ApiError(404, "Meeting not found");
+    }
   }
 
   const task = await Task.create({

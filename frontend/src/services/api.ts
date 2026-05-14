@@ -25,18 +25,20 @@ export interface RefreshResponse { accessToken: string; }
 export interface MeetingData {
   _id: string;
   tenantId: string;
+  meetingId: string; // join code like "a1b2-c3d4"
   title: string;
   description: string | null;
-  hostId: { _id: string; name: string; email: string; avatar: string | null } | string;
-  participants: { userId: string | { _id: string; name: string; email: string; avatar: string | null }; role: string; joinedAt: string | null; leftAt: string | null }[];
-  status: 'scheduled' | 'live' | 'ended' | 'cancelled';
-  meetingCode: string;
-  scheduledAt: string | null;
-  startedAt: string | null;
-  endedAt: string | null;
-  duration: number | null;
-  transcriptReady: boolean;
-  summaryReady: boolean;
+  host: { _id: string; name: string; email: string; avatar: string | null } | string;
+  participants: ({ _id: string; name: string; email: string; avatar: string | null } | string)[];
+  status: 'Scheduled' | 'Ongoing' | 'Completed' | 'Cancelled';
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  actualStartTime: string | null;
+  actualEndTime: string | null;
+  transcript: string | null;
+  summary: string | null;
+  actionItems: { title: string; assignee: string; dueDate: string | null; completed: boolean }[];
+  recordingUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -45,9 +47,9 @@ export interface TaskData {
   _id: string;
   title: string;
   description: string | null;
-  status: 'todo' | 'in_progress' | 'done';
-  priority: 'low' | 'medium' | 'high';
-  assigneeName: string | null;
+  status: 'Open' | 'In Progress' | 'Completed' | 'Cancelled' | 'todo' | 'in_progress' | 'done';
+  priority: 'Low' | 'Medium' | 'High' | 'Urgent' | 'low' | 'medium' | 'high';
+  assignee: { _id: string; name: string; email: string; avatar: string | null } | null;
   meetingId: string | null;
   dueDate: string | null;
   createdAt: string;
@@ -221,26 +223,27 @@ class ApiService {
   async createOrganization(name: string) { return this.request<OrganizationData>('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) }); }
   async getMyOrganization() { return this.request<OrganizationData | null>('/api/organizations/me', { method: 'GET' }); }
   async getOrganizations() { return this.request<OrganizationData[]>('/api/organizations', { method: 'GET' }); }
-  async addMember(orgId: string, email: string, role: 'admin' | 'member' | 'viewer' = 'member', name?: string) { return this.request<OrganizationData>(`/api/organizations/${orgId}/members`, { method: 'POST', body: JSON.stringify({ email, role, name }) }); }
-  async inviteMember(orgId: string, email: string, role: 'admin' | 'member' = 'member') { return this.request<OrganizationData>(`/api/organizations/${orgId}/invite`, { method: 'POST', body: JSON.stringify({ email, role }) }); }
-  async acceptInvitation() { return this.request<OrganizationData>('/api/organizations/accept-invite', { method: 'POST' }); }
+  async addMember(orgId: string, email: string, role: 'Admin' | 'Member' | 'Viewer' = 'Member', name?: string) { return this.request<OrganizationData>(`/api/organizations/${orgId}/members`, { method: 'POST', body: JSON.stringify({ email, role, name }) }); }
+  async acceptInvitation(token: string) { return this.request<{ organizationId: string }>('/api/invitations/accept', { method: 'POST', body: JSON.stringify({ token }) }); }
+  async validateInvitation(token: string) { return this.request<{ valid: boolean; memberEmail: string; memberName: string; organizationName: string; organizationId: string; role: string }>('/api/invitations/validate?token=' + encodeURIComponent(token), { method: 'GET' }); }
   async removeMember(orgId: string, memberId: string) { return this.request(`/api/organizations/${orgId}/members/${memberId}`, { method: 'DELETE' }); }
   async getOrgMembers(orgId: string) { return this.request(`/api/organizations/${orgId}/members`, { method: 'GET' }); }
 
   // ─── Meetings ──────────────────────────────────────────────
-  async createMeeting(data: { title: string; description?: string; scheduledAt?: string }) { return this.request<MeetingData>('/api/meetings', { method: 'POST', body: JSON.stringify(data) }); }
-  async getMeetings() { return this.request<MeetingData[]>('/api/meetings', { method: 'GET' }); }
+  async createMeeting(data: { title: string; description?: string; scheduledStartTime?: string; scheduledEndTime?: string }) { return this.request<MeetingData>('/api/meetings', { method: 'POST', body: JSON.stringify(data) }); }
+  async getMeetings(filters?: { status?: string }) { const params = filters?.status ? `?status=${filters.status}` : ''; return this.request<MeetingData[]>(`/api/meetings${params}`, { method: 'GET' }); }
   async getMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'GET' }); }
   async getMeetingByCode(code: string) { return this.request<MeetingData>(`/api/meetings/code/${code}`, { method: 'GET' }); }
-  async updateMeeting(id: string, data: Partial<{ title: string; description: string; scheduledAt: string }>) { return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  async updateMeeting(id: string, data: Partial<{ title: string; description: string; scheduledStartTime: string; scheduledEndTime: string }>) { return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   async deleteMeeting(id: string) { return this.request(`/api/meetings/${id}`, { method: 'DELETE' }); }
   async startMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/start`, { method: 'POST' }); }
   async endMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/end`, { method: 'POST' }); }
+  async joinMeetingAsParticipant(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/join`, { method: 'POST' }); }
 
   // ─── Tasks ─────────────────────────────────────────────────
-  async createTask(data: { title: string; description?: string; priority?: string; assigneeName?: string; meetingId?: string; dueDate?: string }) { return this.request<TaskData>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }); }
+  async createTask(data: { title: string; description?: string; priority?: string; assignee?: string; meetingId?: string; dueDate?: string }) { return this.request<TaskData>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }); }
   async getTasks(filters?: { status?: string }) { const params = filters?.status ? `?status=${filters.status}` : ''; return this.request<TaskData[]>(`/api/tasks${params}`, { method: 'GET' }); }
-  async updateTask(id: string, data: Partial<{ title: string; status: string; priority: string; assigneeName: string; dueDate: string }>) { return this.request<TaskData>(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  async updateTask(id: string, data: Partial<{ title: string; status: string; priority: string; assignee: string; dueDate: string }>) { return this.request<TaskData>(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   async deleteTask(id: string) { return this.request(`/api/tasks/${id}`, { method: 'DELETE' }); }
 
   // ─── AI ────────────────────────────────────────────────────

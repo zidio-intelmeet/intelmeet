@@ -283,7 +283,9 @@ export default function VideoRoom() {
     try {
       if (meetingId) {
         emit('meeting:leave', { meetingId });
-        if (meeting) {
+        // Only end the meeting if the current user is the host
+        const isHost = meeting && typeof meeting.host !== 'string' && meeting.host._id === user?.id;
+        if (isHost) {
           await apiService.endMeeting(meetingId);
         }
       }
@@ -291,12 +293,12 @@ export default function VideoRoom() {
       webrtcManager.stopLocalStream();
       webrtcManager.closeAllPeerConnections();
 
-      navigate('/dashboard/meetings');
+      navigate('/meetings');
     } catch (err) {
       console.error('Error leaving meeting:', err);
-      navigate('/dashboard/meetings');
+      navigate('/meetings');
     }
-  }, [meetingId, meeting, emit, navigate]);
+  }, [meetingId, meeting, user, emit, navigate]);
 
   if (loading) {
     return (
@@ -349,7 +351,7 @@ export default function VideoRoom() {
           <h2 className="text-white font-bold text-lg mb-2">Meeting not found</h2>
           <p className="text-slate-400 mb-6">{error || 'The meeting does not exist'}</p>
           <button
-            onClick={() => navigate('/dashboard/meetings')}
+            onClick={() => navigate('/meetings')}
             className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
           >
             Go back to meetings
@@ -372,7 +374,7 @@ export default function VideoRoom() {
         <div>
           <h1 className="text-white font-bold text-lg">{meeting.title}</h1>
           <p className="text-slate-400 text-xs">
-            Code: <span className="font-mono">{meeting.meetingCode}</span>
+            Code: <span className="font-mono">{meeting.meetingId}</span>
           </p>
         </div>
         <div className="flex items-center gap-4">

@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import { asyncHandler } from "../utils/async-handler";
 import { ApiError } from "../utils/api-error";
 import { ApiResponse } from "../utils/api-response";
@@ -52,18 +53,26 @@ export const createOrganization = asyncHandler(async (req: Request, res: Respons
     .replace(/[^a-z0-9]+/g, '-')  // Replace any non-alphanumeric with hyphen
     .replace(/^-+|-+$/g, '');      // Remove leading/trailing hyphens
   
-  const userId = (req as any).user.id;
+  let finalSlug = generatedSlug || "org";
+  let isUnique = false;
 
-  // Check if slug already exists
-  const existing = await Organization.findOne({ slug: generatedSlug });
-  if (existing) {
-    throw new ApiError(400, "Organization slug already exists");
+  // Guarantee uniqueness
+  while (!isUnique) {
+    const existing = await Organization.findOne({ slug: finalSlug });
+    if (!existing) {
+      isUnique = true;
+    } else {
+      const randomSuffix = crypto.randomBytes(3).toString('hex');
+      finalSlug = `${generatedSlug}-${randomSuffix}`;
+    }
   }
 
+  const userId = (req as any).user.id;
+
   const organization = await Organization.create({
-    tenantId: generatedSlug,
+    tenantId: finalSlug,
     name,
-    slug: generatedSlug,
+    slug: finalSlug,
     description: description || null,
     owner: userId,
     members: [
@@ -73,6 +82,12 @@ export const createOrganization = asyncHandler(async (req: Request, res: Respons
         joinedAt: new Date(),
       },
     ],
+  });
+
+  // Update the user to reflect their new tenant and admin status
+  await User.findByIdAndUpdate(userId, {
+    tenantId: finalSlug,
+    role: "Admin",
   });
 
   const populated = await organization.populate("owner", "name avatar email");
@@ -122,9 +137,13 @@ export const updateOrganization = asyncHandler(async (req: Request, res: Respons
 // POST add member to organization
 export const addMember = asyncHandler(async (req: Request, res: Response) => {
   const { orgId } = req.params;
-  const { email, userId: memberId, role, name } = req.body;
+  const { email, role } = req.body;
   const adminId = (req as any).user.id;
   const adminUser = (req as any).user;
+
+  if (!email) {
+    throw new ApiError(400, "Email is required");
+  }
 
   const organization = await Organization.findOne({ _id: orgId });
   if (!organization) {
@@ -137,43 +156,39 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(403, "Only admins can add members");
   }
 
-  let finalMemberId = memberId;
+  const normalizedEmail = email.toLowerCase();
 
-  // If email is provided, find or create the user
-  if (email && !memberId) {
-    let user = await User.findOne({ email: email.toLowerCase() });
-    
-    if (!user) {
-      // Create a placeholder user for invitation
-      user = await User.create({
-        tenantId: organization.tenantId,
-        email: email.toLowerCase(),
-        name: name || email.split('@')[0],
-        password: "pending", // Placeholder - will be set when user signs up
-        isInvited: true,
-      });
+  // Check if already a member
+  // Need to find user by email to check if they are already in members
+  const existingUser = await User.findOne({ email: normalizedEmail, tenantId: organization.tenantId });
+  if (existingUser) {
+    const isMember = organization.members.some((m) => m.userId.toString() === existingUser._id.toString());
+    if (isMember) {
+      throw new ApiError(400, "User is already a member");
     }
-    
-    finalMemberId = user._id;
-  } else if (!finalMemberId) {
-    throw new ApiError(400, "Either email or userId is required");
   }
 
-  // Check if already member
-  const isMember = organization.members.some((m) => m.userId.toString() === finalMemberId);
-  if (isMember) {
-    throw new ApiError(400, "User is already a member");
+  // Check if invitation already exists
+  const existingInvite = organization.invitations?.find(
+    (inv) => inv.email === normalizedEmail && inv.status === "pending"
+  );
+  if (existingInvite) {
+    throw new ApiError(400, "Invitation already sent to this email");
   }
 
   const memberRole = role || "Member";
+  
+  // Push to invitations array
   const updated = await Organization.findByIdAndUpdate(
     orgId,
     {
       $push: {
-        members: {
-          userId: finalMemberId,
+        invitations: {
+          email: normalizedEmail,
           role: memberRole,
-          joinedAt: new Date(),
+          invitedBy: adminId,
+          invitedAt: new Date(),
+          status: "pending",
         },
       },
     },
@@ -182,41 +197,39 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
     .populate("owner", "name avatar email")
     .populate("members.userId", "name avatar email");
 
-  // Get member details
-  const memberUser = await User.findById(finalMemberId).select("name email");
-  const ownerUser = (req as any).user;
-
   // Send invitation email with token
-  if (memberUser && memberUser.email) {
-    const invitationTokenPayload = {
-      invitationId: `${orgId}-${finalMemberId}`,
-      organizationId: orgId,
-      memberEmail: memberUser.email,
-      memberName: memberUser.name || memberUser.email,
-      role: memberRole as "Admin" | "Member" | "Viewer",
-      type: "invitation" as const,
-    };
+  const invitationTokenPayload = {
+    invitationId: `${orgId}-${normalizedEmail}`,
+    organizationId: orgId,
+    memberEmail: normalizedEmail,
+    memberName: normalizedEmail.split('@')[0],
+    role: memberRole as "Admin" | "Member" | "Viewer",
+    type: "invitation" as const,
+  };
 
-    const invitationToken = generateInvitationToken(invitationTokenPayload);
-    const invitationLink = generateInvitationLink(
-      invitationToken,
-      process.env.FRONTEND_URL
-    );
+  const invitationToken = generateInvitationToken(invitationTokenPayload);
+  const invitationLink = generateInvitationLink(
+    invitationToken,
+    process.env.FRONTEND_URL
+  );
 
-    // Send email
-    await EmailService.sendInvitationEmail({
-      memberEmail: memberUser.email,
-      memberName: memberUser.name || memberUser.email,
-      adminEmail: ownerUser.email,
-      adminName: ownerUser.name || "Admin",
-      organizationName: organization.name,
-      invitationToken,
-      invitationLink,
-    });
-  }
+  // Send email using EmailService (best-effort, don't block on failure)
+  const emailSent = await EmailService.sendInvitationEmail({
+    memberEmail: normalizedEmail,
+    memberName: normalizedEmail.split('@')[0],
+    adminEmail: adminUser.email,
+    adminName: adminUser.name || "Admin",
+    organizationName: organization.name,
+    invitationToken,
+    invitationLink,
+  });
 
   res.status(201).json(
-    new ApiResponse(201, updated, "Member invitation sent successfully")
+    new ApiResponse(201, { 
+      organization: updated, 
+      invitationLink,
+      emailSent,
+    }, emailSent ? "Member invitation sent successfully" : "Invitation created. Email could not be sent — share the link manually.")
   );
 });
 
