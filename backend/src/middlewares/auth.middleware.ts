@@ -13,6 +13,7 @@ declare global {
         email: string;
         name: string;
         avatar: string | null;
+        role: string;
       };
       tenantId?: string;
       orgId?: string;
@@ -47,6 +48,7 @@ export const requireAuth = AsyncHandler(
       email: user.email,
       name: user.name,
       avatar: user.avatar,
+      role: user.role,
     };
 
     next();

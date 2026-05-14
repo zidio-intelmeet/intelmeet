@@ -10,7 +10,12 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
-import MeetingRoom from './pages/MeetingRoom' 
+import AuthSuccessPage from './pages/AuthSuccessPage'
+import MeetingRoom from './pages/MeetingRoom'
+import VideoRoom from './pages/VideoRoom'
+import JoinMeeting from './pages/JoinMeeting'
+import MeetingsPage from './pages/MeetingsPage'
+import AcceptInvitationPage from './pages/AcceptInvitationPage' 
 
 // ⚠️ Make sure these paths point to your actual files!
 import { useAuthStore } from './stores/authStore' 
@@ -132,6 +137,19 @@ function HomePage() {
 
 function WorkspacePage() {
   const { user } = useAuth()
+  const isLoading = useAuthStore((state) => state.isLoading)
+
+  // Wait for auth check to complete before showing anything
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)]">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-slate-600">Loading your workspace...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -150,7 +168,20 @@ function DashboardIcon({ path }: { path: string }) {
 
 function WorkspaceFrame({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+  const isLoading = useAuthStore((state) => state.isLoading)
   const location = useLocation()
+
+  // Wait for auth check to complete before showing anything
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7fbf8]">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -563,10 +594,22 @@ function MeetingDetailsDrawer({
 
 function WorkspaceMeetingsPage() {
   const { user } = useAuth()
+  const isLoading = useAuthStore((state) => state.isLoading)
   const [meetings, setMeetings] = useState(() => readMeetings())
   const navigate = useNavigate()
   const [isMeetingDrawerOpen, setIsMeetingDrawerOpen] = useState(false)
   const [drawerDefaultType, setDrawerDefaultType] = useState('Instant')
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7fbf8]">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -698,6 +741,7 @@ function WorkspaceMeetingsPage() {
 
 function WorkspaceSettingsPage() {
   const { user, updateProfile, logout } = useAuth()
+  const isLoading = useAuthStore((state) => state.isLoading)
   const navigate = useNavigate()
   const [name, setName] = useState(user?.name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
@@ -706,6 +750,17 @@ function WorkspaceSettingsPage() {
   const [about, setAbout] = useState(user?.about ?? '')
   const [savedMessage, setSavedMessage] = useState('')
   const [errors, setErrors] = useState<SettingsErrors>({})
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7fbf8]">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -866,6 +921,7 @@ function getInitials(name: string, email: string) {
 
 function SchedulePage() {
   const { user } = useAuth()
+  const isLoading = useAuthStore((state) => state.isLoading)
   const [tasks, setTasks] = useState<ScheduleTask[]>([])
   const [taskTitle, setTaskTitle] = useState('')
   const [taskNote, setTaskNote] = useState('')
@@ -877,6 +933,17 @@ function SchedulePage() {
     scheduled: 'newest',
   })
   const [sortMenuColumn, setSortMenuColumn] = useState<ScheduleColumnId | null>(null)
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f7fbf8]">
+        <div className="text-center">
+          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
+          <p className="mt-4 text-slate-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!user) {
     return <Navigate to="/login" replace />
@@ -1193,17 +1260,21 @@ function Layout() {
       {isAuthPage && <Navbar />}
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/auth/success" element={<AuthSuccessPage />} />
+        <Route path="/accept-invitation" element={<AcceptInvitationPage />} />
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
 
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/teams" element={<WorkspaceFrame><TeamsPage /></WorkspaceFrame>} />
-        <Route path="/meetings" element={<WorkspaceMeetingsPage />} />
+        <Route path="/meetings" element={<WorkspaceFrame><MeetingsPage /></WorkspaceFrame>} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/settings" element={<WorkspaceSettingsPage />} />
         
         <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
+        <Route path="/dashboard/meetings/:meetingId/video" element={<VideoRoom />} />
+        <Route path="/meetings/:code/join" element={<JoinMeeting />} />
       </Routes>
     </>
   )

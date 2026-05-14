@@ -37,12 +37,14 @@ const decodeOAuthState = (state: unknown): string => {
   }
 };
 
-const setRefreshCookie = (res: Response, token: string) => {
-  res.cookie("refreshToken", token, {
+const setTokenCookies = (res: Response, refreshToken: string) => {
+  // Refresh token: httpOnly (secure, not accessible to JavaScript)
+  res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
-    secure: env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
+    secure: env.NODE_ENV === "production", // false in dev (localhost), true in prod (HTTPS)
+    sameSite: env.NODE_ENV === "production" ? "strict" : "lax", // 'lax' for dev (localhost with different ports), 'strict' for prod
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 };
 
@@ -61,7 +63,7 @@ export const register = AsyncHandler(async (req: Request, res: Response) => {
     password
   );
 
-  setRefreshCookie(res, tokens.refreshToken);
+  setTokenCookies(res, tokens.refreshToken);
 
   return ApiResponse.created(res, "Registration successful", {
     user,
@@ -83,7 +85,7 @@ export const login = AsyncHandler(async (req: Request, res: Response) => {
     password
   );
 
-  setRefreshCookie(res, tokens.refreshToken);
+  setTokenCookies(res, tokens.refreshToken);
 
   return ApiResponse.ok(res, "Login successful", {
     user,
@@ -93,21 +95,31 @@ export const login = AsyncHandler(async (req: Request, res: Response) => {
 
 export const refreshToken = AsyncHandler(
   async (req: Request, res: Response) => {
-    const token = req.cookies?.refreshToken;
-    if (!token) throw ApiError.unauthorized("Refresh token not found");
+    // Read refresh token from httpOnly cookie (automatically sent by browser)
+    const refreshTokenFromCookie = req.cookies?.refreshToken;
+    if (!refreshTokenFromCookie) {
+      throw ApiError.unauthorized("Refresh token not found. Please login again.");
+    }
 
-    const payload = verifyRefreshToken(token);
-    const tokens = generateTokenPair({
-      userId: payload.userId,
-      email: payload.email,
-      tenantId: payload.tenantId,
-    });
+    try {
+      const payload = verifyRefreshToken(refreshTokenFromCookie);
+      const tokens = generateTokenPair({
+        userId: payload.userId,
+        email: payload.email,
+        tenantId: payload.tenantId,
+      });
 
-    setRefreshCookie(res, tokens.refreshToken);
+      // Set new refresh token in cookie
+      setTokenCookies(res, tokens.refreshToken);
 
-    return ApiResponse.ok(res, "Token refreshed", {
-      accessToken: tokens.accessToken,
-    });
+      return ApiResponse.ok(res, "Token refreshed successfully", {
+        accessToken: tokens.accessToken,
+      });
+    } catch (error) {
+      // Clear invalid refresh token
+      res.clearCookie("refreshToken", { httpOnly: true, path: "/" });
+      throw ApiError.unauthorized("Invalid refresh token. Please login again.");
+    }
   }
 );
 

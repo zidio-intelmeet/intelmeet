@@ -104,7 +104,7 @@ export default function JoinMeeting() {
         <p className="text-slate-300 mb-6">{error}</p>
         <div className="flex gap-3">
           <button
-            onClick={() => navigate('/dashboard/meetings')}
+            onClick={() => navigate('/meetings')}
             className="flex-1 px-4 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium transition-colors"
           >
             View Meetings

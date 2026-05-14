@@ -35,6 +35,7 @@
     "src/pages/ProfilePage.tsx",
     "src/pages/ProjectsPage.tsx",
     "src/pages/VideoRoom.tsx",
+    "src/services/socketService.ts",
     "src/stores",
     "src/utils"
   ]

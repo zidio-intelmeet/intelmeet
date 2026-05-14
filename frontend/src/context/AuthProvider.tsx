@@ -1,41 +1,46 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { AuthContext, AUTH_STORAGE_KEY, normalizeUser, type AuthUser, type AuthContextValue } from './auth'
+import { useEffect, useMemo, type ReactNode } from 'react';
+import { useAuthStore } from '../stores/authStore';
+import { AuthContext, type AuthContextValue } from './auth';
 
+/**
+ * AuthProvider - Initializes authentication on app startup
+ * 
+ * Flow on page load:
+ * 1. Component mounts
+ * 2. Call checkAuth() - tries to refresh token using refresh token cookie
+ * 3. If successful: access token + user data restored
+ * 4. If failed: user stays logged out
+ * 
+ * This enables persistent login like YouTube - close browser, come back, still logged in!
+ */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => {
-    const storedUser = localStorage.getItem(AUTH_STORAGE_KEY)
+  const user = useAuthStore((state) => state.user);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const login = useAuthStore((state) => state.login);
+  const register = useAuthStore((state) => state.register);
+  const logout = useAuthStore((state) => state.logout);
 
-    if (!storedUser) {
-      return null
-    }
-
-    try {
-      return normalizeUser(JSON.parse(storedUser) as AuthUser)
-    } catch {
-      localStorage.removeItem(AUTH_STORAGE_KEY)
-      return null
-    }
-  })
-
+  // Initialize auth on app startup - restore session from refresh token cookie
   useEffect(() => {
-    if (user) {
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user))
-      return
-    }
+    checkAuth().catch(console.error);
+  }, [checkAuth]);
 
-    localStorage.removeItem(AUTH_STORAGE_KEY)
-  }, [user])
+  // Provide auth context to all child components
+  const contextValue: AuthContextValue = useMemo(() => ({
+    user: user || null,
+    // These connect directly to store methods which handle API calls
+    login: (email: string, password: string) => login(email, password),
+    register: (name: string, email: string, password: string) => register(name, email, password),
+    logout,
+    updateProfile: async (profile) => {
+      // Placeholder - would update user profile via API
+      console.log('Update profile:', profile);
+    },
+  }), [user, login, register, logout]);
 
-  const value = useMemo<AuthContextValue>(
-    () => ({
-      user,
-      login: (nextUser) => setUser(normalizeUser(nextUser)),
-      updateProfile: (profile) =>
-        setUser((currentUser) => (currentUser ? normalizeUser({ ...currentUser, ...profile }) : currentUser)),
-      logout: () => setUser(null),
-    }),
-    [user],
-  )
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

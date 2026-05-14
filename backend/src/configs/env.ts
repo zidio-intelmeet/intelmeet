@@ -68,12 +68,32 @@ export const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.preprocess(trimString, z.string().min(1)),
   CLOUDINARY_API_KEY: z.preprocess(trimString, z.string().min(1)),
   CLOUDINARY_API_SECRET: z.preprocess(trimString, z.string().min(1)),
+
+  REDIS_URL: z
+    .preprocess(emptyStringToUndefined, z.string())
+    .optional(),
+
+  OPENAI_API_KEY: z
+    .preprocess(emptyStringToUndefined, z.string())
+    .optional(),
+
+  RESEND_API_KEY: z
+    .preprocess(emptyStringToUndefined, z.string())
+    .optional(),
+
+  EMAIL_FROM: z
+    .preprocess(emptyStringToUndefined, z.string())
+    .optional(),
 });
 
 type ParsedEnv = z.infer<typeof envSchema>;
 
 export type Env = Omit<ParsedEnv, "GOOGLE_CALLBACK_URL"> & {
   GOOGLE_CALLBACK_URL: string;
+  REDIS_URL?: string;
+  OPENAI_API_KEY?: string;
+  RESEND_API_KEY?: string;
+  EMAIL_FROM?: string;
 };
 
 const result = envSchema.safeParse(process.env);
