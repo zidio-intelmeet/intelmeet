@@ -4,7 +4,7 @@ export type StoredCredential = AuthUser & {
   password: string
 }
 
-const CREDENTIALS_KEY = 'intellmeet-credentials'
+const CREDENTIALS_KEY = 'intellmeet-credentials-v2'
 
 function readCredentials() {
   try {
@@ -35,4 +35,18 @@ export function saveCredential(credential: StoredCredential) {
   )
 
   writeCredentials([...credentials, normalizedCredential])
+}
+
+export function updateCredential(email: string, updates: Partial<StoredCredential>) {
+  const normalizedEmail = email.trim().toLowerCase()
+  const credentials = readCredentials()
+  const currentCredential = credentials.find((credential) => credential.email.toLowerCase() === normalizedEmail)
+
+  if (!currentCredential) return
+
+  saveCredential({
+    ...currentCredential,
+    ...updates,
+    email: updates.email ?? currentCredential.email,
+  })
 }

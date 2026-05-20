@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent } from 'react';
 
 interface ChatMessage {
   id: string;
@@ -14,6 +14,7 @@ interface MeetingChatProps {
   onClose: () => void;
   onSendMessage: (content: string) => void;
   currentUserId?: string;
+  variant?: 'drawer' | 'inline';
 }
 
 export function MeetingChat({
@@ -22,6 +23,7 @@ export function MeetingChat({
   onClose,
   onSendMessage,
   currentUserId,
+  variant = 'drawer',
 }: MeetingChatProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -44,9 +46,13 @@ export function MeetingChat({
 
   return (
     <div
-      className={`fixed top-0 left-0 h-full w-80 bg-slate-800 border-r border-slate-700 transform transition-transform duration-300 z-40 ${
-        isOpen ? 'translate-x-0' : '-translate-x-full'
-      }`}
+      className={
+        variant === 'inline'
+          ? 'relative h-full w-full bg-slate-800'
+          : `fixed top-0 left-0 h-full w-80 bg-slate-800 border-r border-slate-700 transform transition-transform duration-300 z-40 ${
+              isOpen ? 'translate-x-0' : '-translate-x-full'
+            }`
+      }
     >
       <div className="p-4 border-b border-slate-700 flex items-center justify-between">
         <h2 className="text-white font-semibold">Chat</h2>

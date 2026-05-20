@@ -1,5 +1,6 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { updateCredential } from '../lib/authCredentials';
 import { AuthContext, type AuthContextValue } from './auth';
 
 /**
@@ -19,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useAuthStore((state) => state.login);
   const register = useAuthStore((state) => state.register);
   const logout = useAuthStore((state) => state.logout);
+  const updateStoreProfile = useAuthStore((state) => state.updateProfile);
 
   // Initialize auth on app startup - restore session from refresh token cookie
   useEffect(() => {
@@ -30,13 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: user || null,
     // These connect directly to store methods which handle API calls
     login: (email: string, password: string) => login(email, password),
-    register: (name: string, email: string, password: string) => register(name, email, password),
+    register: (name: string, email: string, password: string, role: 'Admin' | 'Member') => register(name, email, password, role),
     logout,
     updateProfile: async (profile) => {
-      // Placeholder - would update user profile via API
-      console.log('Update profile:', profile);
+      if (!user) return;
+      updateStoreProfile(profile);
+      updateCredential(user.email, profile);
     },
-  }), [user, login, register, logout]);
+  }), [user, login, register, logout, updateStoreProfile]);
 
   return (
     <AuthContext.Provider value={contextValue}>

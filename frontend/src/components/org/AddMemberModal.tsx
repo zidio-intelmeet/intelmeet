@@ -12,6 +12,7 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded, organizationId 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'Admin' | 'Member' | 'Viewer'>('Member');
+  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -43,7 +44,7 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded, organizationId 
     try {
       const response = await apiService.addMember(organizationId, email.trim(), role, name.trim());
       
-      const data = response.data as any;
+      const data = response.data as { invitationLink?: string; emailSent?: boolean };
       const link = data?.invitationLink || '';
       const emailSent = data?.emailSent;
 
@@ -77,6 +78,7 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded, organizationId 
     setName('');
     setEmail('');
     setRole('Member');
+    setIsRoleMenuOpen(false);
     setError('');
     setSuccess('');
     setInvitationLink('');
@@ -178,21 +180,61 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded, organizationId 
             </div>
 
             {/* Role */}
-            <div>
-              <label htmlFor="member-role" className="block text-sm font-semibold text-slate-700 mb-1.5">
+            <div className="relative">
+              <span className="mb-1.5 block text-sm font-semibold text-slate-700">
                 Role
-              </label>
-              <select
-                id="member-role"
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'Admin' | 'Member' | 'Viewer')}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-slate-900 text-sm transition-all focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsRoleMenuOpen((isOpen) => !isOpen)}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-slate-900 transition-all focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
                 disabled={isSubmitting}
               >
-                <option value="Member">Member</option>
-                <option value="Admin">Admin</option>
-                <option value="Viewer">Viewer (Read-only)</option>
-              </select>
+                <span>{role === 'Viewer' ? 'Viewer (Read-only)' : role}</span>
+                <span className="text-slate-400">⌄</span>
+              </button>
+              {isRoleMenuOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-2xl border border-emerald-100 bg-white p-4 shadow-xl shadow-emerald-950/10">
+                  <div className="flex items-center justify-between border-b border-emerald-50 pb-3">
+                    <h3 className="text-sm font-bold text-slate-900">Role</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsRoleMenuOpen(false)}
+                      className="rounded-lg px-2 py-1 text-sm font-bold text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                      aria-label="Close role menu"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    {[
+                      { value: 'Member' as const, label: 'Member' },
+                      { value: 'Admin' as const, label: 'Admin' },
+                      { value: 'Viewer' as const, label: 'Viewer (Read-only)' },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          setRole(option.value)
+                          setIsRoleMenuOpen(false)
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-emerald-50"
+                      >
+                        <span>{option.label}</span>
+                        <span
+                          className={[
+                            'flex h-5 w-5 items-center justify-center rounded-full border',
+                            role === option.value ? 'border-emerald-600' : 'border-slate-300',
+                          ].join(' ')}
+                        >
+                          {role === option.value && <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" />}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Info Box */}

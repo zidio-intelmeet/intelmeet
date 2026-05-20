@@ -1,4 +1,4 @@
-@import "tailwindcss";
+﻿@import "tailwindcss";
 
 :root {
   color: #0f172a;
@@ -30,6 +30,48 @@ button {
   cursor: pointer;
 }
 
+a,
+button,
+input,
+textarea,
+select,
+summary,
+[role="button"],
+.intellmeet-hover-card {
+  transition:
+    transform 160ms ease,
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+a:hover,
+button:not(:disabled):hover,
+input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):hover,
+textarea:hover,
+select:hover,
+summary:hover,
+[role="button"]:hover,
+.intellmeet-hover-card:hover {
+  transform: translateY(-2px) scale(1.01);
+}
+
+article:hover,
+label:has(input[type="file"]):hover {
+  transform: translateY(-2px) scale(1.01);
+  transition:
+    transform 160ms ease,
+    filter 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 img {
   display: block;
   max-width: 100%;
@@ -38,3 +80,53 @@ img {
 #root {
   min-height: 100vh;
 }
+
+.intellmeet-wait-dots {
+  animation: intellmeet-wait-travel 1.25s linear infinite;
+}
+
+.intellmeet-wait-dots span {
+  display: block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #059669;
+}
+
+.intellmeet-logo-link {
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+  transform-origin: center;
+}
+
+.intellmeet-logo-link:hover {
+  transform: translateY(-2px) scale(1.03);
+  filter: drop-shadow(0 10px 18px rgba(5, 150, 105, 0.18));
+}
+
+@keyframes intellmeet-wait-travel {
+  from {
+    transform: translateX(-3rem);
+  }
+
+  to {
+    transform: translateX(18rem);
+  }
+}
+
+.intellmeet-compact [class*=" p-6"],
+.intellmeet-compact [class*=" p-5"] {
+  padding: 1rem;
+}
+
+.intellmeet-compact [class*=" gap-6"],
+.intellmeet-compact [class*=" gap-5"] {
+  gap: 1rem;
+}
+
+.intellmeet-compact [class*=" py-6"] {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+

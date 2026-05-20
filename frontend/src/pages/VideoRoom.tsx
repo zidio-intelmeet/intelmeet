@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+﻿import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService, type MeetingData } from '../services/api';
 import { useSocket } from '../hooks/useSocket';
 import { useAuthStore } from '../stores/authStore';
@@ -8,7 +8,8 @@ import { VideoDisplay } from '../components/meeting/VideoDisplay';
 import { AudioVideoControls } from '../components/meeting/AudioVideoControls';
 import { ParticipantsList } from '../components/meeting/ParticipantsList';
 import { MeetingChat } from '../components/meeting/MeetingChat';
-
+import { VideoRoomSidebar } from './VideoRoomSidebar';
+import { clearActiveMeeting, getMeetingElapsedSeconds, rememberActiveMeeting } from './videoRoomHelpers';
 interface ChatMessage {
   id: string;
   senderId: string;
@@ -16,7 +17,6 @@ interface ChatMessage {
   content: string;
   timestamp: string;
 }
-
 interface Participant {
   id?: string;
   name: string;
@@ -25,21 +25,19 @@ interface Participant {
   hasAudio: boolean;
   isHost?: boolean;
 }
-
 interface RemoteUser {
   socketId: string;
   userId: string;
   userName: string;
   stream?: MediaStream;
+  isLocal?: boolean;
 }
-
 export default function VideoRoom() {
   const { meetingId } = useParams<{ meetingId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((s) => s.user);
-  const { socket, emit, on, off } = useSocket();
-
-  // States
+  const { socket, emit, on } = useSocket();
   const [meeting, setMeeting] = useState<MeetingData | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteUsers, setRemoteUsers] = useState<RemoteUser[]>([]);
@@ -50,32 +48,50 @@ export default function VideoRoom() {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [meetingDuration, setMeetingDuration] = useState(0);
-
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const isCompactMode = searchParams.get('compact') === '1';
   const remoteUsersRef = useRef<RemoteUser[]>([]);
   const streamInitializedRef = useRef(false);
-
-  // Fetch meeting details
+  const syncMeetingAsOngoing = useCallback(async (currentMeetingId: string) => {
+    try {
+      const started = await apiService.startMeeting(currentMeetingId);
+      if (started.data) {
+        setMeeting(started.data);
+      }
+    } catch {
+    }
+  }, []);
   useEffect(() => {
     const fetchMeeting = async () => {
       if (!meetingId) return;
       try {
         const res = await apiService.getMeeting(meetingId);
-        setMeeting(res.data || null);
+        const fetchedMeeting = res.data || null;
+        setMeeting(fetchedMeeting);
+        setMeetingDuration(getMeetingElapsedSeconds(fetchedMeeting));
+        if (fetchedMeeting && fetchedMeeting.status !== 'Ongoing') {
+          void syncMeetingAsOngoing(meetingId);
+        }
         setLoading(false);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch meeting');
         setLoading(false);
       }
     };
-
     fetchMeeting();
+  }, [meetingId, syncMeetingAsOngoing]);
+  useEffect(() => {
+    if (meetingId) {
+      rememberActiveMeeting(meetingId);
+    }
   }, [meetingId]);
-
-  // Initialize local stream
+  useEffect(() => {
+    if (!meeting) return;
+    setMeetingDuration(getMeetingElapsedSeconds(meeting));
+  }, [meeting]);
   const initializeLocalStream = useCallback(async () => {
     if (streamInitializedRef.current) return;
     streamInitializedRef.current = true;
-
     try {
       const stream = await webrtcManager.getLocalStream(true, true);
       setLocalStream(stream);
@@ -88,33 +104,24 @@ export default function VideoRoom() {
       console.error('Stream initialization error:', err);
     }
   }, []);
-
-  // Join meeting on socket connection
   useEffect(() => {
     if (!socket || !meetingId || !meeting) return;
-
     webrtcManager.setSocket(socket);
     initializeLocalStream();
-
     const joinMeeting = () => {
       emit('meeting:join', { meetingId });
     };
-
     if (socket.connected) {
       joinMeeting();
     } else {
       socket.on('connect', joinMeeting);
     }
-
     return () => {
       socket.off('connect', joinMeeting);
     };
   }, [socket, meetingId, meeting, emit, initializeLocalStream]);
-
-  // Handle incoming participants list
   useEffect(() => {
     if (!socket) return;
-
     const handleParticipants = (data: { participants: Participant[] }) => {
       setParticipants(
         data.participants.map((p) => ({
@@ -123,11 +130,8 @@ export default function VideoRoom() {
           hasAudio: true,
         }))
       );
-
-      // Create peer connections for each participant
       data.participants.forEach((participant) => {
         if (participant.socketId !== socket.id) {
-          // Check if already connected
           if (
             !remoteUsersRef.current.find(
               (u) => u.socketId === participant.socketId
@@ -138,15 +142,11 @@ export default function VideoRoom() {
         }
       });
     };
-
     const unsubscribe = on('meeting:participants', handleParticipants);
     return unsubscribe;
   }, [socket, on]);
-
-  // Handle user joined
   useEffect(() => {
     if (!socket) return;
-
     const handleUserJoined = (data: {
       userId: string;
       userName: string;
@@ -154,15 +154,11 @@ export default function VideoRoom() {
     }) => {
       console.log('User joined:', data);
     };
-
     const unsubscribe = on('meeting:user-joined', handleUserJoined);
     return unsubscribe;
   }, [socket, on]);
-
-  // Handle WebRTC offer
   useEffect(() => {
     if (!socket) return;
-
     const handleOffer = (data: {
       from: string;
       offer: RTCSessionDescriptionInit;
@@ -173,15 +169,11 @@ export default function VideoRoom() {
       webrtcManager.handleOffer(data.from, data.offer);
       webrtcManager.updateRemoteUserInfo(data.from, data.userId, data.userName);
     };
-
     const unsubscribe = on('webrtc:offer', handleOffer);
     return unsubscribe;
   }, [socket, on]);
-
-  // Handle WebRTC answer
   useEffect(() => {
     if (!socket) return;
-
     const handleAnswer = (data: {
       from: string;
       answer: RTCSessionDescriptionInit;
@@ -189,27 +181,20 @@ export default function VideoRoom() {
       console.log('Received answer from:', data.from);
       webrtcManager.handleAnswer(data.from, data.answer);
     };
-
     const unsubscribe = on('webrtc:answer', handleAnswer);
     return unsubscribe;
   }, [socket, on]);
-
-  // Handle ICE candidate
   useEffect(() => {
     if (!socket) return;
-
     const handleIceCandidate = (data: {
       from: string;
       candidate: RTCIceCandidateInit;
     }) => {
       webrtcManager.handleIceCandidate(data.from, data.candidate);
     };
-
     const unsubscribe = on('webrtc:ice-candidate', handleIceCandidate);
     return unsubscribe;
   }, [socket, on]);
-
-  // Monitor remote streams
   useEffect(() => {
     const interval = setInterval(() => {
       const remoteStreams = webrtcManager.getRemoteStreams();
@@ -219,7 +204,6 @@ export default function VideoRoom() {
         userName: rs.userName,
         stream: rs.stream,
       }));
-
       if (
         JSON.stringify(newRemoteUsers) !==
         JSON.stringify(remoteUsersRef.current)
@@ -228,14 +212,10 @@ export default function VideoRoom() {
         setRemoteUsers(newRemoteUsers);
       }
     }, 500);
-
     return () => clearInterval(interval);
   }, []);
-
-  // Handle chat messages
   useEffect(() => {
     if (!socket) return;
-
     const handleChatMessage = (data: {
       id: string;
       senderId: string;
@@ -245,31 +225,45 @@ export default function VideoRoom() {
     }) => {
       setChatMessages((prev) => [...prev, data]);
     };
-
     const unsubscribe = on('chat:message', handleChatMessage);
     return unsubscribe;
   }, [socket, on]);
-
-  // Meeting duration timer
   useEffect(() => {
+    if (!meeting) return;
     const interval = setInterval(() => {
-      setMeetingDuration((prev) => prev + 1);
+      setMeetingDuration(getMeetingElapsedSeconds(meeting));
     }, 1000);
-
     return () => clearInterval(interval);
-  }, []);
-
-  // Handle toggle mic
+  }, [meeting]);
   const handleToggleMic = useCallback((enabled: boolean) => {
     webrtcManager.toggleAudio(enabled);
   }, []);
-
-  // Handle toggle camera
   const handleToggleCamera = useCallback((enabled: boolean) => {
     webrtcManager.toggleVideo(enabled);
   }, []);
-
-  // Handle send message
+  const handleToggleScreenShare = useCallback(async (sharing: boolean) => {
+    try {
+      if (sharing) {
+        const nextStream = await webrtcManager.startScreenShare();
+        const nextTrack = nextStream.getVideoTracks()[0];
+        if (nextTrack) {
+          nextTrack.onended = () => {
+            void handleToggleScreenShare(false);
+          };
+        }
+        setLocalStream(nextStream);
+        setIsScreenSharing(true);
+      } else {
+        const nextStream = await webrtcManager.stopScreenShare();
+        setLocalStream(nextStream);
+        setIsScreenSharing(false);
+      }
+    } catch (err) {
+      console.error('Screen share failed:', err);
+      setError(err instanceof Error ? err.message : 'Screen share failed');
+      setIsScreenSharing(false);
+    }
+  }, []);
   const handleSendMessage = useCallback(
     (content: string) => {
       if (!meetingId) return;
@@ -277,32 +271,56 @@ export default function VideoRoom() {
     },
     [meetingId, emit]
   );
-
-  // Handle leave meeting
   const handleLeaveMeeting = useCallback(async () => {
     try {
       if (meetingId) {
         emit('meeting:leave', { meetingId });
-        // Only end the meeting if the current user is the host
-        const isHost = meeting && typeof meeting.host !== 'string' && meeting.host._id === user?.id;
-        if (isHost) {
-          await apiService.endMeeting(meetingId);
-        }
+        await apiService.endMeeting(meetingId);
+        clearActiveMeeting();
       }
-
       webrtcManager.stopLocalStream();
       webrtcManager.closeAllPeerConnections();
-
-      navigate('/meetings');
+      navigate(`/transition?to=${encodeURIComponent('/workspace')}`);
     } catch (err) {
       console.error('Error leaving meeting:', err);
-      navigate('/meetings');
+      clearActiveMeeting();
+      navigate(`/transition?to=${encodeURIComponent('/workspace')}`);
     }
-  }, [meetingId, meeting, user, emit, navigate]);
-
+  }, [meetingId, emit, navigate]);
+  const handleCompactEndMeeting = useCallback(async () => {
+    try {
+      if (meetingId) {
+        emit('meeting:leave', { meetingId });
+        await apiService.endMeeting(meetingId);
+        clearActiveMeeting();
+      }
+      webrtcManager.stopLocalStream();
+      webrtcManager.closeAllPeerConnections();
+      window.close();
+    } catch (err) {
+      console.error('Error ending compact meeting:', err);
+      window.close();
+    }
+  }, [meetingId, emit]);
+  const handleWorkspaceNavigation = useCallback((destination: string) => {
+    if (!meetingId) return;
+    rememberActiveMeeting(meetingId);
+    const popupUrl = `${window.location.origin}/dashboard/meetings/${meetingId}/video?compact=1`;
+    const popup = window.open(
+      popupUrl,
+      'intellmeet-meeting-popout',
+      'popup=yes,width=420,height=640,resizable=yes,scrollbars=no'
+    );
+    if (popup) {
+      popup.focus();
+      navigate(destination);
+    } else {
+      alert('Popup blocked. Please allow popups for IntellMeet and try again.');
+    }
+  }, [meetingId, navigate]);
   if (loading) {
     return (
-      <div className="w-full h-screen bg-slate-900 flex items-center justify-center">
+      <div className="w-full h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <svg
             className="w-12 h-12 animate-spin text-indigo-600 mx-auto mb-4"
@@ -328,10 +346,9 @@ export default function VideoRoom() {
       </div>
     );
   }
-
   if (error || !meeting) {
     return (
-      <div className="w-full h-screen bg-slate-900 flex items-center justify-center p-4">
+      <div className="w-full h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <div className="w-16 h-16 rounded-full bg-red-600/20 flex items-center justify-center mx-auto mb-4">
             <svg
@@ -360,17 +377,83 @@ export default function VideoRoom() {
       </div>
     );
   }
-
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
+  if (isCompactMode) {
+    return (
+      <div className="h-screen bg-black text-white flex flex-col">
+        <header className="border-b border-slate-700 px-4 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-sm font-bold">{meeting.title}</h1>
+              <p className="text-xs text-slate-400">{formatDuration(meetingDuration)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { void handleCompactEndMeeting(); }}
+              className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 hover:text-red-200"
+            >
+              End
+            </button>
+          </div>
+        </header>
+        <main className="flex-1 min-h-0 p-3 flex flex-col gap-3">
+          <div className="grid grid-cols-1 gap-3 flex-1 min-h-0">
+            {remoteUsers[0] ? (
+              <div className="rounded-xl overflow-hidden min-h-40">
+                <VideoDisplay
+                  stream={remoteUsers[0].stream || null}
+                  userName={remoteUsers[0].userName}
+                  className="h-full"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl overflow-hidden min-h-40">
+                <VideoDisplay
+                  stream={localStream}
+                  userName={user?.name || 'You'}
+                  isLocal
+                  className="h-full"
+                />
+              </div>
+            )}
+          </div>
+          {showChat && (
+            <div className="h-64 rounded-xl overflow-hidden border border-slate-700">
+              <MeetingChat
+                messages={chatMessages}
+                isOpen={showChat}
+                onClose={() => setShowChat(false)}
+                onSendMessage={handleSendMessage}
+                currentUserId={user?.id}
+                variant="inline"
+              />
+            </div>
+          )}
+        </main>
+        <footer className="border-t border-slate-700 px-4 py-3">
+          <AudioVideoControls
+            onToggleMic={handleToggleMic}
+            onToggleCamera={handleToggleCamera}
+            onToggleScreenShare={handleToggleScreenShare}
+            onLeave={() => { void handleCompactEndMeeting(); }}
+            onToggleChat={() => setShowChat(!showChat)}
+            isScreenSharing={isScreenSharing}
+            showChat={showChat}
+            showLeave
+          />
+        </footer>
+      </div>
+    );
+  }
   return (
-    <div className="w-full h-screen bg-slate-900 flex flex-col">
-      {/* Header */}
-      <div className="bg-slate-800/50 border-b border-slate-700 px-6 py-3 flex items-center justify-between">
+    <div className="w-full h-screen bg-black flex">
+      <VideoRoomSidebar onNavigate={handleWorkspaceNavigation} />
+      <div className="min-w-0 flex-1 flex flex-col">
+      <div className="bg-black border-b border-slate-800 px-6 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-white font-bold text-lg">{meeting.title}</h1>
           <p className="text-slate-400 text-xs">
@@ -412,27 +495,16 @@ export default function VideoRoom() {
           </div>
         </div>
       </div>
-
-      {/* Main video area */}
       <div className="flex-1 flex overflow-hidden gap-4 p-4">
-        {/* Dynamic Video Grid */}
         <div className="flex-1 flex flex-col gap-4 overflow-auto">
-          {/* Calculate grid layout based on participant count */}
           {(() => {
             const totalUsers = remoteUsers.length + 1; // +1 for local user
-            
-            // Layout rules:
-            // 1-2 users: side by side (2 cols)
-            // 3-4 users: 2x2 grid
-            // 5-6 users: 3 cols
-            // 7+ users: 4 cols
             const getCols = () => {
               if (totalUsers <= 2) return 2;
               if (totalUsers <= 4) return 2;
               if (totalUsers <= 6) return 3;
               return 4;
             };
-
             const allUsers = [
               { 
                 socketId: 'local', 
@@ -442,14 +514,12 @@ export default function VideoRoom() {
               },
               ...remoteUsers,
             ];
-
             const cols = getCols();
             const gridClass = {
               2: 'grid-cols-2',
               3: 'grid-cols-3',
               4: 'grid-cols-4',
             }[cols] || 'grid-cols-2';
-
             return (
               <div className={`grid ${gridClass} gap-3 h-full auto-rows-fr`}>
                 {allUsers.map((user) => (
@@ -466,8 +536,6 @@ export default function VideoRoom() {
             );
           })()}
         </div>
-
-        {/* Chat Panel */}
         {showChat && (
           <MeetingChat
             messages={chatMessages}
@@ -477,8 +545,6 @@ export default function VideoRoom() {
             currentUserId={user?.id}
           />
         )}
-
-        {/* Participants Panel */}
         {showParticipants && (
           <ParticipantsList
             participants={participants}
@@ -487,18 +553,19 @@ export default function VideoRoom() {
           />
         )}
       </div>
-
-      {/* Control bar */}
-      <div className="bg-slate-800/50 border-t border-slate-700 px-6 py-4 flex items-center justify-center">
+      <div className="bg-black border-t border-slate-800 px-6 py-4 flex items-center justify-center">
         <AudioVideoControls
           onToggleMic={handleToggleMic}
           onToggleCamera={handleToggleCamera}
+          onToggleScreenShare={handleToggleScreenShare}
           onLeave={handleLeaveMeeting}
           onToggleChat={() => setShowChat(!showChat)}
           onToggleParticipants={() => setShowParticipants(!showParticipants)}
+          isScreenSharing={isScreenSharing}
           showChat={showChat}
           showParticipants={showParticipants}
         />
+      </div>
       </div>
     </div>
   );

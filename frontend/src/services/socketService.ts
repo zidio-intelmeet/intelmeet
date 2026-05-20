@@ -1,6 +1,6 @@
-import { Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client'
 
-export type MeetingEvent = 
+export type MeetingEvent =
   | 'meeting:join'
   | 'meeting:leave'
   | 'chat:message'
@@ -20,155 +20,161 @@ export type MeetingEvent =
   | 'recording:stop'
   | 'recording:stopped'
   | 'mention:user'
-  | 'notification:received';
+  | 'notification:received'
+  | 'join-room'
+  | 'offer'
+  | 'answer'
 
-/**
- * Centralized Socket.io event manager
- * Provides type-safe methods for emitting and subscribing to events
- */
+export type SocketEventData = Record<string, unknown>
+
+export type MeetingUser = {
+  id: string
+  name: string
+  avatar?: string
+}
+
+type SocketLike = Pick<Socket, 'emit' | 'on' | 'off' | 'disconnect' | 'connected'>
+type SocketHandler = (data: SocketEventData) => void
+
 export class SocketService {
-  constructor(private socket: Socket | null) {}
+  private socket: SocketLike | null
 
-  // ==================== MEETING EVENTS ====================
+  constructor(socket: SocketLike | null) {
+    this.socket = socket
+  }
 
-  joinMeeting(meetingId: string, user: { id: string; name: string; avatar?: string }) {
-    this.emit('meeting:join', { meetingId, user });
+  setSocket(socket: SocketLike | null) {
+    this.socket = socket
+  }
+
+  joinMeeting(meetingId: string, user: MeetingUser) {
+    this.emit('meeting:join', { meetingId, user })
   }
 
   leaveMeeting(meetingId: string) {
-    this.emit('meeting:leave', { meetingId });
+    this.emit('meeting:leave', { meetingId })
   }
-
-  // ==================== CHAT EVENTS ====================
 
   sendMessage(meetingId: string, message: string, senderName: string) {
-    this.emit('chat:message', { meetingId, message, senderName });
+    this.emit('chat:message', { meetingId, message, senderName })
   }
 
-  onMessageReceived(handler: (data: any) => void) {
-    return this.on('chat:message', handler);
+  onMessageReceived(handler: SocketHandler) {
+    return this.on('chat:message', handler)
   }
 
-  // ==================== PARTICIPANT EVENTS ====================
-
-  onParticipantJoined(handler: (data: any) => void) {
-    return this.on('participant:joined', handler);
+  onParticipantJoined(handler: SocketHandler) {
+    return this.on('participant:joined', handler)
   }
 
-  onParticipantLeft(handler: (data: any) => void) {
-    return this.on('participant:left', handler);
+  onParticipantLeft(handler: SocketHandler) {
+    return this.on('participant:left', handler)
   }
 
   muteAudio(meetingId: string) {
-    this.emit('participant:mute', { meetingId, type: 'audio' });
+    this.emit('participant:mute', { meetingId, type: 'audio' })
   }
 
   unmuteAudio(meetingId: string) {
-    this.emit('participant:unmute', { meetingId, type: 'audio' });
+    this.emit('participant:unmute', { meetingId, type: 'audio' })
   }
 
   muteVideo(meetingId: string) {
-    this.emit('participant:mute', { meetingId, type: 'video' });
+    this.emit('participant:mute', { meetingId, type: 'video' })
   }
 
   unmuteVideo(meetingId: string) {
-    this.emit('participant:unmute', { meetingId, type: 'video' });
+    this.emit('participant:unmute', { meetingId, type: 'video' })
   }
 
-  getParticipantsList(handler: (data: any) => void) {
-    return this.on('participants:list', handler);
+  getParticipantsList(handler: SocketHandler) {
+    return this.on('participants:list', handler)
   }
 
-  onParticipantsUpdated(handler: (data: any) => void) {
-    return this.on('participants:updated', handler);
+  onParticipantsUpdated(handler: SocketHandler) {
+    return this.on('participants:updated', handler)
   }
-
-  // ==================== SCREEN SHARING EVENTS ====================
 
   startScreenShare(meetingId: string) {
-    this.emit('screen:share:start', { meetingId });
+    this.emit('screen:share:start', { meetingId })
   }
 
-  onScreenShareStarted(handler: (data: any) => void) {
-    return this.on('screen:share:started', handler);
+  onScreenShareStarted(handler: SocketHandler) {
+    return this.on('screen:share:started', handler)
   }
 
   stopScreenShare(meetingId: string) {
-    this.emit('screen:share:stop', { meetingId });
+    this.emit('screen:share:stop', { meetingId })
   }
 
-  onScreenShareStopped(handler: (data: any) => void) {
-    return this.on('screen:share:stopped', handler);
+  onScreenShareStopped(handler: SocketHandler) {
+    return this.on('screen:share:stopped', handler)
   }
-
-  // ==================== RECORDING EVENTS ====================
 
   startRecording(meetingId: string) {
-    this.emit('recording:start', { meetingId });
+    this.emit('recording:start', { meetingId })
   }
 
-  onRecordingStarted(handler: (data: any) => void) {
-    return this.on('recording:started', handler);
+  onRecordingStarted(handler: SocketHandler) {
+    return this.on('recording:started', handler)
   }
 
   stopRecording(meetingId: string) {
-    this.emit('recording:stop', { meetingId });
+    this.emit('recording:stop', { meetingId })
   }
 
-  onRecordingStopped(handler: (data: any) => void) {
-    return this.on('recording:stopped', handler);
+  onRecordingStopped(handler: SocketHandler) {
+    return this.on('recording:stopped', handler)
   }
-
-  // ==================== NOTIFICATIONS ====================
 
   mentionUser(mentionedUserId: string, meetingId: string, message: string) {
-    this.emit('mention:user', { mentionedUserId, meetingId, message });
+    this.emit('mention:user', { mentionedUserId, meetingId, message })
   }
 
-  onNotificationReceived(handler: (data: any) => void) {
-    return this.on('notification:received', handler);
+  onNotificationReceived(handler: SocketHandler) {
+    return this.on('notification:received', handler)
   }
-
-  // ==================== LEGACY WEBRTC EVENTS ====================
 
   joinRoom(meetingId: string) {
-    this.emit('join-room', meetingId);
+    this.emit('join-room', { meetingId })
   }
 
-  sendOffer(payload: any) {
-    this.emit('offer', payload);
+  sendOffer(payload: SocketEventData) {
+    this.emit('offer', payload)
   }
 
-  sendAnswer(payload: any) {
-    this.emit('answer', payload);
-  }
-
-  // ==================== INTERNAL METHODS ====================
-
-  private emit(event: string, data?: unknown) {
-    if (!this.socket) {
-      console.warn(`⚠️ [SocketService] Cannot emit "${event}" - socket not connected`);
-      return;
-    }
-    this.socket.emit(event, data);
-  }
-
-  private on(event: string, handler: (...args: unknown[]) => void) {
-    if (!this.socket) {
-      console.warn(`⚠️ [SocketService] Cannot subscribe to "${event}" - socket not connected`);
-      return () => {};
-    }
-    this.socket.on(event, handler);
-    return () => this.socket?.off(event, handler);
+  sendAnswer(payload: SocketEventData) {
+    this.emit('answer', payload)
   }
 
   disconnect() {
-    this.socket?.disconnect();
+    this.socket?.disconnect()
   }
 
-  isConnected(): boolean {
-    return this.socket?.connected || false;
+  isConnected() {
+    return this.socket?.connected ?? false
+  }
+
+  private emit(event: MeetingEvent, data?: SocketEventData) {
+    if (!this.socket) {
+      console.warn(`[SocketService] Cannot emit "${event}" because socket is not connected`)
+      return
+    }
+
+    this.socket.emit(event, data)
+  }
+
+  private on(event: MeetingEvent, handler: SocketHandler) {
+    if (!this.socket) {
+      console.warn(`[SocketService] Cannot subscribe to "${event}" because socket is not connected`)
+      return () => undefined
+    }
+
+    this.socket.on(event, handler)
+    return () => {
+      this.socket?.off(event, handler)
+    }
   }
 }
 
-export default SocketService;
+export default SocketService

@@ -38,11 +38,11 @@ export function HeroSection() {
     setMeetingError('')
 
     if (!user) {
-      navigate('/signup')
+      navigate(`/transition?to=${encodeURIComponent('/signup')}`)
       return
     }
 
-    navigate('/meetings')
+    navigate(`/transition?to=${encodeURIComponent('/meetings')}`)
   }
 
   return (
@@ -93,7 +93,7 @@ export function HeroSection() {
             </form>
 
             {(meetingError || meetingMessage || hostMessage) && (
-              <p className={`mt-3 text-sm font-medium ${meetingError || hostMessage ? 'text-rose-600' : 'text-emerald-600'}`}>
+            <p className={`mt-3 text-sm font-medium ${meetingError || hostMessage ? 'text-rose-600' : 'text-emerald-600'}`}>
                 {meetingError || meetingMessage || hostMessage}
               </p>
             )}

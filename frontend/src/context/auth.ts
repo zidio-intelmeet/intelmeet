@@ -9,6 +9,7 @@ export type AuthUser = {
   address?: string
   about?: string
   avatar?: string | null
+  role?: 'Admin' | 'Member'
 }
 
 export type AuthContextValue = {
@@ -16,7 +17,7 @@ export type AuthContextValue = {
   // Real login - sends credentials to backend
   login: (email: string, password: string) => Promise<void>
   // Real register - sends user details to backend
-  register: (name: string, email: string, password: string) => Promise<void>
+  register: (name: string, email: string, password: string, role: 'Admin' | 'Member') => Promise<void>
   // Update profile after login
   updateProfile: (profile: Partial<AuthUser>) => Promise<void> | void
   // Logout and clear auth state

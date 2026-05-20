@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/auth';
 import { apiService } from '../services/api';
+import { transitionPath } from '../workspace/shared';
 
 interface InvitationData {
   valid: boolean;
@@ -10,6 +11,7 @@ interface InvitationData {
   organizationName: string;
   organizationId: string;
   role: string;
+  invitedByName?: string;
 }
 
 export const AcceptInvitationPage = () => {
@@ -58,6 +60,10 @@ export const AcceptInvitationPage = () => {
     }
 
     if (!token) return;
+    if (invitationData && user.email.toLowerCase() !== invitationData.memberEmail.toLowerCase()) {
+      setError(`Please login with ${invitationData.memberEmail} to accept this invite.`);
+      return;
+    }
 
     setIsAccepting(true);
     try {
@@ -65,13 +71,13 @@ export const AcceptInvitationPage = () => {
       if (response.data?.organizationId) {
         setSuccess(true);
         setTimeout(() => {
-          navigate('/dashboard');
+          navigate(transitionPath('/workspace'));
         }, 2000);
       } else {
         setError(response.message || 'Failed to accept invitation');
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to accept invitation. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to accept invitation. Please try again.');
     } finally {
       setIsAccepting(false);
     }
@@ -79,7 +85,7 @@ export const AcceptInvitationPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-blue-50">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Validating invitation...</p>
@@ -90,7 +96,7 @@ export const AcceptInvitationPage = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-blue-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="text-5xl mb-4">✅</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Welcome Aboard!</h1>
@@ -103,7 +109,7 @@ export const AcceptInvitationPage = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-blue-50">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
           <div className="text-center">
             <div className="text-5xl mb-4">❌</div>
@@ -126,7 +132,7 @@ export const AcceptInvitationPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-emerald-50 to-blue-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
@@ -140,6 +146,10 @@ export const AcceptInvitationPage = () => {
           <div>
             <p className="text-sm text-gray-600">Organization</p>
             <p className="text-lg font-semibold text-gray-900">{invitationData.organizationName}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600">Invited by</p>
+            <p className="text-lg font-semibold text-gray-900">{invitationData.invitedByName || 'Admin'}</p>
           </div>
           <div>
             <p className="text-sm text-gray-600">Your Email</p>

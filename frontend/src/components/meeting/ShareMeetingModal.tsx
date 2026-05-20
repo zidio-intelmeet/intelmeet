@@ -10,7 +10,6 @@ interface ShareMeetingModalProps {
 export function ShareMeetingModal({
   isOpen,
   meetingCode,
-  meetingId,
   onClose,
 }: ShareMeetingModalProps) {
   const [copied, setCopied] = useState(false);

@@ -21,6 +21,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [errors, setErrors] = useState<LoginErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`
 
   function handleGoogleLogin() {
     // TODO: Implement Google OAuth login
@@ -57,7 +58,7 @@ export default function LoginPage() {
     login(trimmedEmail, password)
       .then(() => {
         setPassword('')
-        navigate('/workspace')
+        navigate(transitionPath('/workspace'))
       })
       .catch((error) => {
         setErrors({ form: error instanceof Error ? error.message : 'Login failed. Please try again.' })
@@ -79,7 +80,7 @@ export default function LoginPage() {
 
           {/* Back Button */}
           <Link
-            to="/"
+            to={transitionPath('/')}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors mb-6"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -222,7 +223,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Don't have an account?{' '}
-            <Link to="/signup" className="font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+            <Link to={transitionPath('/signup')} className="font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
               Create Account
             </Link>
           </p>

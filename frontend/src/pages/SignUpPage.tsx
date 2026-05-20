@@ -8,6 +8,7 @@ type SignUpErrors = {
   email?: string
   password?: string
   confirmPassword?: string
+  role?: string
   terms?: string
   form?: string
 }
@@ -28,11 +29,14 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [role, setRole] = useState<'Admin' | 'Member'>('Member')
+  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [errors, setErrors] = useState<SignUpErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`
 
   function handleGoogleLogin() {
     // TODO: Implement Google OAuth login
@@ -88,11 +92,11 @@ export default function SignUpPage() {
 
     // Call real backend registration
     const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim()
-    register(fullName, trimmedEmail, password)
+    register(fullName, trimmedEmail, password, role)
       .then(() => {
         setPassword('')
         setConfirmPassword('')
-        navigate('/workspace')
+        navigate(transitionPath('/login'))
       })
       .catch((error) => {
         setErrors({ form: error instanceof Error ? error.message : 'Registration failed. Please try again.' })
@@ -114,7 +118,7 @@ export default function SignUpPage() {
 
           {/* Back Button */}
           <Link
-            to="/"
+            to={transitionPath('/')}
             className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-indigo-600 transition-colors mb-6"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -130,6 +134,57 @@ export default function SignUpPage() {
           </div>
 
           <form  className="space-y-4" noValidate onSubmit={handleSubmit}>
+
+            {/* Role */}
+            <div className="relative">
+              <label htmlFor="signup-role" className="block text-sm font-semibold text-slate-700 mb-1.5">Account type</label>
+              <button
+                id="signup-role"
+                type="button"
+                onClick={() => setIsRoleMenuOpen((isOpen) => !isOpen)}
+                className="flex w-full items-center justify-between rounded-xl border bg-white/70 px-3.5 py-3 text-sm font-medium text-slate-900 transition-all input-ring"
+                disabled={isSubmitting}
+              >
+                <span>{role}</span>
+                <span className="text-slate-400">⌄</span>
+              </button>
+              {isRoleMenuOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-2xl border border-indigo-100 bg-white p-3 shadow-xl shadow-indigo-950/10">
+                  <div className="flex items-center justify-between border-b border-indigo-50 pb-2">
+                    <h3 className="text-sm font-bold text-slate-900">Account type</h3>
+                    <button
+                      type="button"
+                      onClick={() => setIsRoleMenuOpen(false)}
+                      className="rounded-lg px-2 py-1 text-sm font-bold text-slate-400 transition hover:bg-indigo-50 hover:text-indigo-700"
+                      aria-label="Close account type menu"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="mt-2 space-y-0.5">
+                    {(['Member', 'Admin'] as const).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setRole(option)
+                          setIsRoleMenuOpen(false)
+                          setErrors((currentErrors) => ({ ...currentErrors, role: undefined }))
+                        }}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 transition hover:bg-indigo-50"
+                      >
+                        <span>{option}</span>
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${role === option ? 'border-indigo-600' : 'border-slate-300'}`}>
+                          {role === option && <span className="h-2.5 w-2.5 rounded-full bg-indigo-600" />}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="mt-1.5 text-xs text-slate-500">Choose once during signup. Login will remember it later.</p>
+              {errors.role && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.role}</p>}
+            </div>
 
             {/* Name row */}
             <div className="grid grid-cols-2 gap-3">
@@ -325,7 +380,7 @@ export default function SignUpPage() {
 
           <p className="text-center text-sm text-slate-500 mt-6">
             Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+            <Link to={transitionPath('/login')} className="font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
               Log in
             </Link>
           </p>
