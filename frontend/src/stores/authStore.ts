@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { apiService } from '../services/api';
+import { findCredential, saveCredential } from '../lib/authCredentials';
+
+const FRONTEND_ONLY = import.meta.env.VITE_FRONTEND_ONLY === 'true';
+const LEGACY_SESSION_KEY = 'intellmeet-legacy-session-v2';
+const MOCK_SESSION_KEY = 'intellmeet-mock-user-v2';
+const SESSION_KEY = 'intellmeet-session-v2';
 
 export interface User {
   id: string;
@@ -7,7 +13,10 @@ export interface User {
   name: string;
   email: string;
   avatar: string | null;
-  role?: string;
+  role?: 'Admin' | 'Member';
+  phone?: string;
+  address?: string;
+  about?: string;
   bio?: string | null;
   timezone?: string;
   createdAt: string;
@@ -30,7 +39,7 @@ interface AuthState {
   checkAuth: () => Promise<void>;
   refreshTokens: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, role: 'Admin' | 'Member') => Promise<void>;
 }
 
 /**
@@ -56,6 +65,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   setAuth: (user, accessToken) => {
     apiService.setAccessToken(accessToken);
+    try {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ user, accessToken }));
+    } catch { }
     set({
       user,
       accessToken,
@@ -75,9 +87,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * Update user profile data in local state
    */
   updateProfile: (profile) => {
-    set((state) => ({
-      user: state.user ? { ...state.user, ...profile } : null,
-    }));
+    set((state) => {
+      const nextUser = state.user ? { ...state.user, ...profile } : null
+
+      if (nextUser && state.accessToken) {
+        try {
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextUser, accessToken: state.accessToken }))
+        } catch { }
+      }
+
+      return {
+        user: nextUser,
+      }
+    });
   },
 
   /**
@@ -89,6 +111,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      try {
+        localStorage.removeItem(MOCK_SESSION_KEY);
+        localStorage.removeItem(LEGACY_SESSION_KEY);
+        localStorage.removeItem(SESSION_KEY);
+      } catch { }
       apiService.setAccessToken(null);
       set({
         user: null,
@@ -106,6 +133,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    */
   checkAuth: async () => {
     set({ isLoading: true });
+
+    // Restore the last known signed-in session first so refreshes do not bounce users to login.
+    try {
+      const localSession =
+        localStorage.getItem(SESSION_KEY) ||
+        localStorage.getItem(FRONTEND_ONLY ? MOCK_SESSION_KEY : LEGACY_SESSION_KEY);
+      if (localSession) {
+        const parsed = JSON.parse(localSession) as { user?: User; accessToken?: string };
+        if (parsed.user && parsed.accessToken) {
+          get().setAuth(parsed.user, parsed.accessToken);
+          return;
+        }
+      }
+    } catch {
+      localStorage.removeItem(SESSION_KEY);
+      localStorage.removeItem(FRONTEND_ONLY ? MOCK_SESSION_KEY : LEGACY_SESSION_KEY);
+    }
+
     try {
       // Try to refresh token using refresh token cookie
       const refreshResponse = await apiService.refreshToken();
@@ -175,15 +220,58 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email: string, password: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await apiService.login(email, password);
-      const { user, accessToken } = response.data || {};
-
-      if (!user || !accessToken) {
-        throw new Error('Invalid login response');
+      if (FRONTEND_ONLY) {
+        const credential = findCredential(email);
+        if (!credential || credential.password !== password) {
+          throw new Error('Invalid email or password');
+        }
+        const mockUser: User = {
+          id: credential.id || crypto.randomUUID(),
+          tenantId: credential.tenantId || 'public',
+          name: credential.name,
+          email: credential.email,
+          avatar: credential.avatar ?? null,
+          role: credential.role ?? 'Member',
+          createdAt: new Date().toISOString(),
+        };
+        const mockToken = 'mock-token';
+        // persist mock session for checkAuth
+        try { localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify({ user: mockUser, accessToken: mockToken })); } catch { }
+        get().setAuth(mockUser, mockToken);
+        return;
       }
+      try {
+        const response = await apiService.login(email, password);
+        const { user, accessToken } = response.data || {};
 
-      // This stores in memory and apiService
-      get().setAuth(user, accessToken);
+        if (!user || !accessToken) {
+          throw new Error('Invalid login response');
+        }
+
+        // This stores in memory and apiService
+        get().setAuth(user, accessToken);
+      } catch (backendError) {
+        // Legacy frontend-only accounts were saved in localStorage before the backend existed.
+        // If one matches, keep it usable rather than forcing a duplicate account.
+        const legacyCredential = findCredential(email);
+        if (!legacyCredential || legacyCredential.password !== password) {
+          throw backendError;
+        }
+
+        const legacyCredentialWithMetadata = legacyCredential as typeof legacyCredential & { createdAt?: string };
+        const legacyUser: User = {
+          id: legacyCredential.id || crypto.randomUUID(),
+          tenantId: legacyCredential.tenantId || 'public',
+          name: legacyCredential.name,
+          email: legacyCredential.email,
+          avatar: legacyCredential.avatar ?? null,
+          role: legacyCredential.role ?? 'Member',
+          createdAt: legacyCredentialWithMetadata.createdAt || new Date().toISOString(),
+        };
+        const legacyToken = 'legacy-local-token';
+        try { localStorage.setItem(LEGACY_SESSION_KEY, JSON.stringify({ user: legacyUser, accessToken: legacyToken })); } catch { }
+        get().setAuth(legacyUser, legacyToken);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Login failed';
       set({ isLoading: false, error: message });
@@ -194,10 +282,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /**
    * Register: Send details -> Get access token in response + refresh token in cookie
    */
-  register: async (name: string, email: string, password: string) => {
+  register: async (name: string, email: string, password: string, role: 'Admin' | 'Member') => {
     set({ isLoading: true, error: null });
     try {
-      const response = await apiService.register(name, email, password);
+      if (FRONTEND_ONLY) {
+        if (findCredential(email)) {
+          throw new Error('Email already registered');
+        }
+        const mockUser: User = {
+          id: crypto.randomUUID(),
+          tenantId: 'public',
+          name,
+          email,
+          avatar: null,
+          role,
+          createdAt: new Date().toISOString(),
+        };
+        saveCredential({ ...mockUser, password });
+        set({ isLoading: false, error: null });
+        return;
+      }
+      const response = await apiService.register(name, email, password, role);
       const { user, accessToken } = response.data || {};
 
       if (!user || !accessToken) {
@@ -205,6 +310,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       get().setAuth(user, accessToken);
+      saveCredential({ ...user, password });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Registration failed';
       set({ isLoading: false, error: message });

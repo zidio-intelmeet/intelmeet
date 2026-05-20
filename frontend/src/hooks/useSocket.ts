@@ -62,7 +62,7 @@ export function useSocket() {
   }, []);
 
   // Subscribe to event
-  const on = useCallback((event: string, handler: (...args: unknown[]) => void) => {
+  const on = useCallback((event: string, handler: (...args: any[]) => void) => {
     if (!socketRef.current) {
       console.warn(`⚠️ [Socket] Cannot subscribe to "${event}" - socket not connected`);
       return () => {};
@@ -72,7 +72,7 @@ export function useSocket() {
   }, []);
 
   // Unsubscribe from event
-  const off = useCallback((event: string, handler?: (...args: unknown[]) => void) => {
+  const off = useCallback((event: string, handler?: (...args: any[]) => void) => {
     socketRef.current?.off(event, handler);
   }, []);
 

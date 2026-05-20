@@ -3,22 +3,28 @@ import { useState } from 'react';
 interface AudioVideoControlsProps {
   onToggleMic: (enabled: boolean) => void;
   onToggleCamera: (enabled: boolean) => void;
+  onToggleScreenShare?: (sharing: boolean) => void;
   onLeave: () => void;
   onToggleChat?: (open: boolean) => void;
   onToggleParticipants?: (open: boolean) => void;
   showChat?: boolean;
   showParticipants?: boolean;
+  isScreenSharing?: boolean;
+  showLeave?: boolean;
   className?: string;
 }
 
 export function AudioVideoControls({
   onToggleMic,
   onToggleCamera,
+  onToggleScreenShare,
   onLeave,
   onToggleChat,
   onToggleParticipants,
   showChat = false,
   showParticipants = false,
+  isScreenSharing = false,
+  showLeave = true,
   className = '',
 }: AudioVideoControlsProps) {
   const [micEnabled, setMicEnabled] = useState(true);
@@ -42,6 +48,10 @@ export function AudioVideoControls({
 
   const handleToggleParticipants = () => {
     onToggleParticipants?.(!showParticipants);
+  };
+
+  const handleToggleScreenShare = () => {
+    onToggleScreenShare?.(!isScreenSharing);
   };
 
   return (
@@ -102,6 +112,22 @@ export function AudioVideoControls({
         )}
       </button>
 
+      {onToggleScreenShare && (
+        <button
+          onClick={handleToggleScreenShare}
+          className={`relative p-3 rounded-full transition-all ${
+            isScreenSharing
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              : 'bg-slate-700 hover:bg-slate-600 text-white'
+          }`}
+          title={isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
+        >
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M3 5.75A2.75 2.75 0 015.75 3h12.5A2.75 2.75 0 0121 5.75v8.5A2.75 2.75 0 0118.25 17H13.5v1.5h2.25a.75.75 0 010 1.5h-7.5a.75.75 0 010-1.5h2.25V17H5.75A2.75 2.75 0 013 14.25v-8.5zm2.75-1.25a1.25 1.25 0 00-1.25 1.25v8.5c0 .69.56 1.25 1.25 1.25h12.5c.69 0 1.25-.56 1.25-1.25v-8.5c0-.69-.56-1.25-1.25-1.25H5.75z" />
+          </svg>
+        </button>
+      )}
+
       {/* Divider */}
       <div className="w-px h-6 bg-slate-600" />
 
@@ -139,20 +165,24 @@ export function AudioVideoControls({
         </button>
       )}
 
-      {/* Divider */}
-      <div className="w-px h-6 bg-slate-600" />
+      {showLeave && (
+        <>
+          {/* Divider */}
+          <div className="w-px h-6 bg-slate-600" />
 
-      {/* Leave */}
-      <button
-        onClick={onLeave}
-        className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-all"
-        title="Leave meeting"
-      >
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17 10.5V7c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
-          <path d="M19 13h2v4h-2z" />
-        </svg>
-      </button>
+          {/* Leave */}
+          <button
+            onClick={onLeave}
+            className="p-3 rounded-full bg-red-600 hover:bg-red-700 text-white transition-all"
+            title="Leave meeting"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M17 10.5V7c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+              <path d="M19 13h2v4h-2z" />
+            </svg>
+          </button>
+        </>
+      )}
     </div>
   );
 }

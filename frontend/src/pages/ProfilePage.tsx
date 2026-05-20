@@ -28,7 +28,7 @@ export default function ProfilePage() {
       <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
         {/* Avatar */}
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+          <div className="w-16 h-16 rounded-full bg-linear-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
             {user?.avatar ? <img src={user.avatar} alt="" className="w-16 h-16 rounded-full object-cover" /> : user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           <div>

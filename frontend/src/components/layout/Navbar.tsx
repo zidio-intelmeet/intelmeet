@@ -22,11 +22,12 @@ export function Navbar() {
   const isLogin = location.pathname === '/login'
   const isSignup = location.pathname === '/signup'
   const initials = user ? getInitials(user.name, user.email) : ''
+  const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`
 
   return (
     <header className="px-4 pt-6 sm:px-6 lg:px-8">
       <nav className="mx-auto flex max-w-7xl items-center justify-between rounded-full border border-blue-100/80 bg-white px-5 py-3 shadow-[0_20px_60px_rgba(37,99,235,0.12)] md:px-7">
-        <Link to="/" className="flex items-end gap-0">
+        <Link to={transitionPath('/')} className="intellmeet-logo-link flex items-end gap-0">
           <img
             src={logo}
             alt="IntellMeet logo"
@@ -36,7 +37,7 @@ export function Navbar() {
         </Link>
         {user ? (
           <Link
-            to="/workspace"
+            to={transitionPath('/workspace')}
             className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border border-blue-100 bg-blue-600 text-sm font-bold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700"
             aria-label="Go to workspace"
             title="Go to workspace"
@@ -52,7 +53,7 @@ export function Navbar() {
 
           {/* Sign Up button */}
           <Link
-            to="/signup"
+            to={transitionPath('/signup')}
             className={[
               'rounded-full px-4 py-2 text-sm font-semibold transition',
               isSignup
@@ -65,7 +66,7 @@ export function Navbar() {
 
           {/* Login button */}
           <Link
-            to="/login"
+            to={transitionPath('/login')}
             className={[
               'rounded-full px-4 py-2 text-sm font-semibold transition',
               isLogin

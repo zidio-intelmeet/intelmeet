@@ -20,6 +20,8 @@ const DEFAULT_CONFIG: WebRTCConfig = {
 
 export class WebRTCManager {
   private localStream: MediaStream | null = null;
+  private cameraTrack: MediaStreamTrack | null = null;
+  private screenTrack: MediaStreamTrack | null = null;
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
   private remoteStreams: Map<string, RemoteStream> = new Map();
   private socket: Socket | null = null;
@@ -56,6 +58,8 @@ export class WebRTCManager {
           ? videoConstraints || { width: { ideal: 1280 }, height: { ideal: 720 } }
           : false,
       });
+      this.cameraTrack = this.localStream.getVideoTracks()[0] || null;
+      this.screenTrack = null;
       return this.localStream;
     } catch (err) {
       console.error('Failed to get local stream:', err);
@@ -75,6 +79,8 @@ export class WebRTCManager {
       this.localStream.getTracks().forEach((track) => track.stop());
       this.localStream = null;
     }
+    this.cameraTrack = null;
+    this.screenTrack = null;
   }
 
   /**
@@ -97,6 +103,64 @@ export class WebRTCManager {
         track.enabled = enabled;
       });
     }
+  }
+
+  private async replaceOutgoingVideoTrack(nextTrack: MediaStreamTrack | null) {
+    const updates = Array.from(this.peerConnections.values()).map(async (peerConnection) => {
+      const sender = peerConnection.getSenders().find((item) => item.track?.kind === 'video');
+      if (sender) {
+        await sender.replaceTrack(nextTrack);
+      } else if (nextTrack && this.localStream) {
+        peerConnection.addTrack(nextTrack, this.localStream);
+      }
+    });
+
+    await Promise.all(updates);
+  }
+
+  async startScreenShare(): Promise<MediaStream> {
+    const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    const screenTrack = screenStream.getVideoTracks()[0];
+
+    if (!screenTrack) {
+      throw new Error('No screen track available.');
+    }
+
+    if (!this.localStream) {
+      this.localStream = new MediaStream();
+    }
+
+    const currentVideoTrack = this.localStream.getVideoTracks()[0];
+    if (currentVideoTrack) {
+      this.localStream.removeTrack(currentVideoTrack);
+    }
+
+    this.localStream.addTrack(screenTrack);
+    this.screenTrack = screenTrack;
+    await this.replaceOutgoingVideoTrack(screenTrack);
+
+    return this.localStream;
+  }
+
+  async stopScreenShare(): Promise<MediaStream | null> {
+    if (!this.localStream) return this.localStream;
+
+    const currentVideoTrack = this.localStream.getVideoTracks()[0];
+    if (currentVideoTrack) {
+      this.localStream.removeTrack(currentVideoTrack);
+    }
+
+    this.screenTrack?.stop();
+    this.screenTrack = null;
+
+    if (this.cameraTrack && this.cameraTrack.readyState === 'live') {
+      this.localStream.addTrack(this.cameraTrack);
+      await this.replaceOutgoingVideoTrack(this.cameraTrack);
+    } else {
+      await this.replaceOutgoingVideoTrack(null);
+    }
+
+    return this.localStream;
   }
 
   /**
