@@ -3,7 +3,7 @@
  */
 
 import jwt from "jsonwebtoken";
-import { env } from "../configs/env";
+import env from "../configs/env";
 
 export interface InvitationTokenPayload {
   invitationId: string;
@@ -44,6 +44,6 @@ export const verifyInvitationToken = (token: string): InvitationTokenPayload | n
  * Generate invitation link for email
  */
 export const generateInvitationLink = (invitationToken: string, baseUrl?: string): string => {
-  const url = baseUrl || process.env.FRONTEND_URL || "http://localhost:5173";
+  const url = baseUrl || env.CORS_ORIGIN || "http://localhost:5173";
   return `${url}/accept-invitation?token=${invitationToken}`;
 };

@@ -114,9 +114,6 @@ const organizationSchema = new Schema<Organization>(
   { timestamps: true }
 );
 
-// Indexes
-organizationSchema.index({ tenantId: 1 });
-organizationSchema.index({ slug: 1 });
 organizationSchema.index({ owner: 1 });
 
 const Organization: Model<Organization> = mongoose.model<Organization>(

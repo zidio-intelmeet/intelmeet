@@ -1,104 +1,96 @@
-/**
- * Email Service - Handles sending emails for invitations and notifications
- * Now using Resend
- */
+import { Resend } from 'resend';
+import { ApiError } from '../utils/api-error';
 
-import { logger } from "../utils/logger";
-import { Resend } from "resend";
-import env from "../configs/env";
+let resendClient: Resend | null = null;
 
-const resend = new Resend(env.RESEND_API_KEY);
-
-interface SendInvitationEmailParams {
-  memberEmail: string;
-  memberName: string;
-  adminEmail: string;
-  adminName: string;
-  organizationName: string;
-  invitationToken: string;
-  invitationLink: string;
-}
+const getResend = () => {
+  if (!resendClient) {
+    if (!process.env.RESEND_API_KEY) {
+      console.warn("⚠️ RESEND_API_KEY missing. Emails will not send.");
+      resendClient = new Resend('re_dummy_key'); 
+    } else {
+      resendClient = new Resend(process.env.RESEND_API_KEY);
+    }
+  }
+  return resendClient;
+};
 
 export class EmailService {
-  /**
-   * Send invitation email to new member
-   */
-  static async sendInvitationEmail(params: SendInvitationEmailParams): Promise<boolean> {
+  
+  static async sendWelcomeEmail(toEmail: string, userName: string) {
+    const resend = getResend();
     try {
-      const {
-        memberEmail,
-        memberName,
-        adminEmail,
-        adminName,
-        organizationName,
-        invitationToken,
-        invitationLink,
-      } = params;
-
-      logger.info(`📧 Sending invitation email to ${memberEmail} from ${adminEmail}`, {
-        memberEmail,
-        memberName,
-        organizationName,
-        adminName,
+      console.log(`📧 Attempting to send welcome email to ${toEmail}...`);
+      const data = await resend.emails.send({
+        from: 'IntellMeet <onboarding@resend.dev>', 
+        to: [toEmail], 
+        subject: 'Welcome to IntellMeet Workspace!',
+        html: `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2>Welcome to IntellMeet, ${userName}! 🚀</h2>
+            <p>Your workspace is ready. You can now schedule meetings, track tasks, and use AI to summarize your calls.</p>
+            <p>Let's build something great.</p>
+          </div>
+        `
       });
-
-      const emailHtml = `
-        <h2>Welcome to ${organizationName}!</h2>
-        <p>Hi ${memberName},</p>
-        <p><strong>${adminEmail}</strong> wants to add you to their organization on IntellMeet.</p>
-        
-        <p>Click the link below to accept the invitation and join the workspace:</p>
-        <br/>
-        <a href="${invitationLink}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-          Accept Invitation
-        </a>
-        <br/><br/>
-        <p>Or copy this link in your browser: ${invitationLink}</p>
-        
-        <hr>
-        <p style="font-size: 12px; color: #666;">
-          Invitation token: ${invitationToken}<br>
-          Do not share this token with anyone
-        </p>
-      `;
-
-      const { data, error } = await resend.emails.send({
-        from: env.EMAIL_FROM || 'sujugohel27@gmail.com', // Must be verified domain or onboarding@resend.dev
-        to: memberEmail,
-        subject: `${adminEmail} invited you to join their organization`,
-        html: emailHtml,
-      });
-
-      if (error) {
-        logger.error("Resend API Error", { error });
-        console.error("❌ RESEND ERROR:", error);
-        console.log("\n🔗 INVITATION LINK (development fallback):");
-        console.log(invitationLink);
-        console.log("\n");
-        return false;
-      }
-
-      logger.info("Email sent successfully", { data });
-      return true;
-    } catch (error) {
-      logger.error("Failed to send invitation email", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      console.error("❌ EMAIL SERVICE EXCEPTION:", error);
-      return false;
+      return data;
+    } catch (error: any) {
+      console.error("❌ Failed to send email:", error);
+      throw new ApiError(500, `Email service failed: ${error.message}`);
     }
   }
 
-  /**
-   * Send welcome email after member joins
-   */
-  static async sendWelcomeEmail(
-    memberEmail: string,
-    memberName: string,
-    organizationName: string
-  ): Promise<boolean> {
-    // Left for future implementation
-    return true;
+  static async sendMeetingInvite(toEmail: string, meetingCode: string, hostName: string) {
+    const resend = getResend();
+    try {
+      const data = await resend.emails.send({
+        from: 'IntellMeet <onboarding@resend.dev>',
+        to: [toEmail], 
+        subject: `${hostName} invited you to a meeting`,
+        html: `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2>You have been invited to a meeting!</h2>
+            <p><strong>Host:</strong> ${hostName}</p>
+            <p><strong>Room Code:</strong> ${meetingCode}</p>
+            <a href="http://localhost:5173/meeting/${meetingCode}" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px;">Join Meeting Now</a>
+          </div>
+        `
+      });
+      return data;
+    } catch (error: any) {
+      throw new ApiError(500, `Failed to send invite: ${error.message}`);
+    }
+  }
+
+  static async sendInvitationEmail(data: {
+    memberEmail: string;
+    memberName: string;
+    adminEmail: string;
+    adminName: string;
+    organizationName: string;
+    invitationToken: string;
+    invitationLink: string;
+  }) {
+    const resend = getResend();
+    try {
+      console.log(`📧 Sending org invite to ${data.memberEmail}...`);
+      const response = await resend.emails.send({
+        from: 'IntellMeet <onboarding@resend.dev>',
+        to: [data.memberEmail], 
+        subject: `${data.adminName} invited you to join ${data.organizationName}`,
+        html: `
+          <div style="font-family: sans-serif; color: #333;">
+            <h2>You've been invited!</h2>
+            <p><strong>${data.adminName}</strong> (${data.adminEmail}) has invited you to join the <strong>${data.organizationName}</strong> workspace on IntellMeet.</p>
+            <a href="${data.invitationLink}" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px;">Accept Invitation</a>
+          </div>
+        `
+      });
+      return true; 
+    } catch (error: any) {
+      console.error("❌ Failed to send org invite:", error);
+      return false; 
+    }
   }
 }
 

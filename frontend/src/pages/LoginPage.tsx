@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-
+import { apiService } from '../services/api';
 import { useAuth } from '../context/auth'
 
 type LoginErrors = {
@@ -23,10 +23,10 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`
 
-  function handleGoogleLogin() {
-    // TODO: Implement Google OAuth login
-    console.log('Google login not yet implemented')
-  }
+  const handleGoogleLogin = () => {
+  // 🚀 This actually redirects the user to your backend Google Auth route!
+  apiService.googleLogin();
+};
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

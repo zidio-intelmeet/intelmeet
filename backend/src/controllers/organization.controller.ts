@@ -6,7 +6,8 @@ import { ApiResponse } from "../utils/api-response";
 import Organization from "../models/organization.model";
 import User from "../models/user.model";
 import EmailService from "../services/email.service";
-import { generateInvitationToken, generateInvitationLink } from "../utils/invitation";
+// 🚀 FIXED IMPORT: Brought in the payload type
+import { generateInvitationToken, generateInvitationLink, InvitationTokenPayload } from "../utils/invitation";
 
 // GET all organizations for user
 export const getOrganizations = asyncHandler(async (req: Request, res: Response) => {
@@ -47,16 +48,15 @@ export const getOrganizationBySlug = asyncHandler(async (req: Request, res: Resp
 // POST create organization
 export const createOrganization = asyncHandler(async (req: Request, res: Response) => {
   const { name, description, slug } = req.body;
-  // Generate slug from name: lowercase, replace spaces/special chars with hyphens, remove invalid chars
+  
   const generatedSlug = (slug || name)
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')  // Replace any non-alphanumeric with hyphen
-    .replace(/^-+|-+$/g, '');      // Remove leading/trailing hyphens
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
   
   let finalSlug = generatedSlug || "org";
   let isUnique = false;
 
-  // Guarantee uniqueness
   while (!isUnique) {
     const existing = await Organization.findOne({ slug: finalSlug });
     if (!existing) {
@@ -84,7 +84,6 @@ export const createOrganization = asyncHandler(async (req: Request, res: Respons
     ],
   });
 
-  // Update the user to reflect their new tenant and admin status
   await User.findByIdAndUpdate(userId, {
     tenantId: finalSlug,
     role: "Admin",
@@ -104,11 +103,8 @@ export const updateOrganization = asyncHandler(async (req: Request, res: Respons
   const userId = (req as any).user.id;
 
   const organization = await Organization.findOne({ _id: orgId });
-  if (!organization) {
-    throw new ApiError(404, "Organization not found");
-  }
+  if (!organization) throw new ApiError(404, "Organization not found");
 
-  // Only owner can update
   if (organization.owner.toString() !== userId) {
     throw new ApiError(403, "Only owner can update organization");
   }
@@ -141,16 +137,11 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
   const adminId = (req as any).user.id;
   const adminUser = (req as any).user;
 
-  if (!email) {
-    throw new ApiError(400, "Email is required");
-  }
+  if (!email) throw new ApiError(400, "Email is required");
 
   const organization = await Organization.findOne({ _id: orgId });
-  if (!organization) {
-    throw new ApiError(404, "Organization not found");
-  }
+  if (!organization) throw new ApiError(404, "Organization not found");
 
-  // Only owner/admin can add members
   const adminRole = organization.members.find((m) => m.userId.toString() === adminId)?.role;
   if (adminRole !== "Admin" && organization.owner.toString() !== adminId) {
     throw new ApiError(403, "Only admins can add members");
@@ -158,27 +149,19 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
 
   const normalizedEmail = email.toLowerCase();
 
-  // Check if already a member
-  // Need to find user by email to check if they are already in members
   const existingUser = await User.findOne({ email: normalizedEmail, tenantId: organization.tenantId });
   if (existingUser) {
     const isMember = organization.members.some((m) => m.userId.toString() === existingUser._id.toString());
-    if (isMember) {
-      throw new ApiError(400, "User is already a member");
-    }
+    if (isMember) throw new ApiError(400, "User is already a member");
   }
 
-  // Check if invitation already exists
   const existingInvite = organization.invitations?.find(
     (inv) => inv.email === normalizedEmail && inv.status === "pending"
   );
-  if (existingInvite) {
-    throw new ApiError(400, "Invitation already sent to this email");
-  }
+  if (existingInvite) throw new ApiError(400, "Invitation already sent to this email");
 
-  const memberRole = role || "Member";
+  const memberRole = (role as "Admin" | "Member" | "Viewer") || "Member";
   
-  // Push to invitations array
   const updated = await Organization.findByIdAndUpdate(
     orgId,
     {
@@ -197,23 +180,25 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
     .populate("owner", "name avatar email")
     .populate("members.userId", "name avatar email");
 
-  // Send invitation email with token
-  const invitationTokenPayload = {
+  // 🚀 FIXED: Explicitly typed the payload
+  const invitationTokenPayload: InvitationTokenPayload = {
     invitationId: `${orgId}-${normalizedEmail}`,
-    organizationId: orgId,
+    organizationId: orgId.toString(),
     memberEmail: normalizedEmail,
     memberName: normalizedEmail.split('@')[0],
-    role: memberRole as "Admin" | "Member" | "Viewer",
-    type: "invitation" as const,
+    role: memberRole,
+    type: "invitation",
   };
 
   const invitationToken = generateInvitationToken(invitationTokenPayload);
+  
+  const frontendUrl = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || "http://localhost:5173";
+  
   const invitationLink = generateInvitationLink(
     invitationToken,
-    process.env.FRONTEND_URL
+    frontendUrl
   );
 
-  // Send email using EmailService (best-effort, don't block on failure)
   const emailSent = await EmailService.sendInvitationEmail({
     memberEmail: normalizedEmail,
     memberName: normalizedEmail.split('@')[0],
@@ -225,8 +210,8 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
   });
 
   res.status(201).json(
-    new ApiResponse(201, { 
-      organization: updated, 
+    new ApiResponse(201, {
+      organization: updated,
       invitationLink,
       emailSent,
     }, emailSent ? "Member invitation sent successfully" : "Invitation created. Email could not be sent — share the link manually.")
@@ -239,11 +224,8 @@ export const removeMember = asyncHandler(async (req: Request, res: Response) => 
   const userId = (req as any).user.id;
 
   const organization = await Organization.findOne({ _id: orgId });
-  if (!organization) {
-    throw new ApiError(404, "Organization not found");
-  }
+  if (!organization) throw new ApiError(404, "Organization not found");
 
-  // Only owner can remove members
   if (organization.owner.toString() !== userId) {
     throw new ApiError(403, "Only owner can remove members");
   }
@@ -267,11 +249,8 @@ export const deleteOrganization = asyncHandler(async (req: Request, res: Respons
   const userId = (req as any).user.id;
 
   const organization = await Organization.findOne({ _id: orgId });
-  if (!organization) {
-    throw new ApiError(404, "Organization not found");
-  }
+  if (!organization) throw new ApiError(404, "Organization not found");
 
-  // Only owner can delete
   if (organization.owner.toString() !== userId) {
     throw new ApiError(403, "Only owner can delete organization");
   }

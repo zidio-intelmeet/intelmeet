@@ -3,7 +3,7 @@ import { updateCredential } from '../lib/authCredentials';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const FRONTEND_ONLY = import.meta.env.VITE_FRONTEND_ONLY === 'true';
 const LOCAL_MEETINGS_KEY = 'intellmeet-local-api-meetings';
-const LOCAL_TASKS_KEY = 'intellmeet-local-api-tasks';
+// const LOCAL_TASKS_KEY = 'intellmeet-local-api-tasks'; // Removed as unused
 const LOCAL_ORGS_KEY = 'intellmeet-local-orgs';
 const LOCAL_TEAMS_KEY = 'intellmeet-local-teams';
 const SESSION_KEYS = ['intellmeet-session-v2', 'intellmeet-mock-user-v2', 'intellmeet-legacy-session-v2'] as const;
@@ -85,7 +85,7 @@ export interface RefreshResponse { accessToken: string; }
 export interface MeetingData {
   _id: string;
   tenantId: string;
-  meetingId: string; // join code like "a1b2-c3d4"
+  meetingId: string;
   title: string;
   description: string | null;
   host: { _id: string; name: string; email: string; avatar: string | null } | string;
@@ -150,20 +150,28 @@ class ApiService {
   private accessToken: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
 
-  constructor() { 
+  constructor() {
     this.baseUrl = API_URL;
+    // 🚀 FIX 1: Instantly load the token from LocalStorage when the app boots up
+    this.accessToken = localStorage.getItem('accessToken');
   }
 
-  setAccessToken(token: string | null) { 
-    this.accessToken = token; 
+  setAccessToken(token: string | null) {
+    this.accessToken = token;
+    // 🚀 FIX 2: Permanently save the token so it survives page refreshes
+    if (token) {
+      localStorage.setItem('accessToken', token);
+    } else {
+      localStorage.removeItem('accessToken');
+    }
   }
 
-  getAccessToken(): string | null { 
-    return this.accessToken; 
+  getAccessToken(): string | null {
+    return this.accessToken;
   }
 
-  getBaseUrl(): string { 
-    return this.baseUrl; 
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
@@ -173,24 +181,21 @@ class ApiService {
       ...(options.headers as Record<string, string> || {}),
     };
     
-    // Add access token to Authorization header if available
+    // Will automatically attach the token because we pulled it from LocalStorage
     if (this.accessToken) {
       headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
     try {
-      // credentials: 'include' ensures cookies are sent with request (refresh token in httpOnly cookie)
       const response = await fetch(url, { 
-        ...options, 
-        headers, 
-        credentials: 'include' // CRITICAL: Sends httpOnly cookies with every request
+        ...options,
+        headers,
+        credentials: 'include' // Keeps cookie support active
       });
 
-      // Handle 401 - try to refresh token
       if (response.status === 401 && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
         const newToken = await this.tryRefreshToken();
         if (newToken) {
-          // Retry request with new token
           headers['Authorization'] = `Bearer ${newToken}`;
           const retryResponse = await fetch(url, { 
             ...options, 
@@ -202,10 +207,11 @@ class ApiService {
             const retryData = await retryResponse.json() as ApiResponse<T>;
             return retryData;
           } else if (retryResponse.status === 401) {
-            // Still 401 after refresh - logout
+            this.setAccessToken(null); // Force wipe if completely expired
             throw new ApiError('Session expired. Please login again.', 401);
           }
         }
+        this.setAccessToken(null); // Force wipe if refresh failed
         throw new ApiError('Session expired. Please login again.', 401);
       }
 
@@ -223,34 +229,32 @@ class ApiService {
   }
 
   private async tryRefreshToken(): Promise<string | null> {
-    // Prevent multiple refresh attempts simultaneously
-    if (this.refreshPromise) {
-      return this.refreshPromise;
-    }
+    if (this.refreshPromise) return this.refreshPromise;
 
     this.refreshPromise = (async () => {
       try {
-        // Browser automatically sends refresh token cookie with credentials: 'include'
         const response = await fetch(`${this.baseUrl}/api/auth/refresh`, { 
-          method: 'POST', 
-          credentials: 'include', // CRITICAL: Sends httpOnly refresh token cookie
-          headers: { 'Content-Type': 'application/json' } 
+          method: 'POST',
+          credentials: 'include', 
+          headers: { 'Content-Type': 'application/json' }
         });
 
         if (!response.ok) {
-          this.accessToken = null;
+          this.setAccessToken(null);
           return null;
         }
 
         const data = await response.json() as ApiResponse<RefreshResponse>;
         const newToken = data.data?.accessToken || null;
+        
+        // Save the new token into LocalStorage using our updated function
         if (newToken) {
-          this.accessToken = newToken;
+          this.setAccessToken(newToken);
         }
         return newToken;
       } catch (error) {
         console.error('Token refresh failed:', error);
-        this.accessToken = null;
+        this.setAccessToken(null);
         return null;
       } finally {
         this.refreshPromise = null;
@@ -261,17 +265,23 @@ class ApiService {
   }
 
   // ─── Auth ──────────────────────────────────────────────────
-  async register(name: string, email: string, password: string, role: 'Admin' | 'Member') { return this.request<RegisterResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password, role }) }); }
+  async register(name: string, email: string, password: string) { return this.request<RegisterResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) }); }
   async login(email: string, password: string) { return this.request<LoginResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }); }
   async getMe() { return this.request<AuthUser>('/api/auth/me', { method: 'GET' }); }
-  async logout() { const r = await this.request('/api/auth/logout', { method: 'POST' }); this.accessToken = null; return r; }
   
-  // 🚀 Modified: Fails silently if user is just logged out
+  async logout() { 
+    const r = await this.request('/api/auth/logout', { method: 'POST' }); 
+    this.setAccessToken(null); // Removes from memory AND LocalStorage
+    return r; 
+  }
+  
   async refreshToken(): Promise<{ data?: { accessToken: string } }> { 
     try {
       const response = await fetch(`${this.baseUrl}/api/auth/refresh`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' } });
       if (!response.ok) return {}; 
-      return response.json();
+      const json = await response.json();
+      if (json.data?.accessToken) this.setAccessToken(json.data.accessToken);
+      return json;
     } catch {
       return {};
     }
@@ -280,39 +290,7 @@ class ApiService {
   googleLogin(tenantId = 'public') { window.location.href = `${this.baseUrl}/api/auth/google?tenantId=${tenantId}`; }
 
   // ─── Organizations ─────────────────────────────────────────
-  async createOrganization(name: string) {
-    if (FRONTEND_ONLY) {
-      const orgs = readLocal<OrganizationData[]>(LOCAL_ORGS_KEY, []);
-      const currentUser = getCurrentSessionUser();
-      const owner = currentUser
-        ? { _id: currentUser.id, name: currentUser.name, email: currentUser.email }
-        : 'local';
-      const creatorMember = currentUser
-        ? [{
-            userId: {
-              _id: currentUser.id,
-              name: currentUser.name,
-              email: currentUser.email,
-              avatar: currentUser.avatar,
-            },
-            role: 'Admin',
-            joinedAt: new Date().toISOString(),
-          }]
-        : [];
-      const org: OrganizationData = {
-        _id: crypto.randomUUID(),
-        name,
-        slug: name.toLowerCase().replace(/\s+/g, '-'),
-        ownerId: owner,
-        members: creatorMember,
-        invitations: [],
-        logo: null,
-      };
-      writeLocal(LOCAL_ORGS_KEY, [org, ...orgs.filter((item) => item._id !== org._id)]);
-      return ok(org, 'Organization created');
-    }
-    return this.request<OrganizationData>('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) });
-  }
+  async createOrganization(name: string) { return this.request<OrganizationData>('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) }); }
   async getMyOrganization() { return this.request<OrganizationData | null>('/api/organizations/me', { method: 'GET' }); }
   async getOrganizations() {
     if (FRONTEND_ONLY) {
@@ -500,60 +478,10 @@ class ApiService {
   async getOrgMembers(orgId: string) { return this.request(`/api/organizations/${orgId}/members`, { method: 'GET' }); }
 
   // ─── Meetings ──────────────────────────────────────────────
-  async createMeeting(data: { title: string; description?: string; scheduledStartTime?: string; scheduledEndTime?: string }) {
-    if (FRONTEND_ONLY) {
-      const now = new Date();
-      const start = data.scheduledStartTime ? new Date(data.scheduledStartTime) : now;
-      const end = data.scheduledEndTime ? new Date(data.scheduledEndTime) : new Date(start.getTime() + 60 * 60 * 1000);
-      const meeting: MeetingData = {
-        _id: crypto.randomUUID(), tenantId: 'public', meetingId: Math.random().toString(36).slice(2, 6) + '-' + Math.random().toString(36).slice(2, 6),
-        title: data.title, description: data.description ?? null, host: 'local', participants: [],
-        status: data.scheduledStartTime ? 'Scheduled' : 'Ongoing', scheduledStartTime: start.toISOString(), scheduledEndTime: end.toISOString(),
-        actualStartTime: data.scheduledStartTime ? null : now.toISOString(), actualEndTime: null, transcript: null, summary: null, actionItems: [], recordingUrl: null,
-        createdAt: now.toISOString(), updatedAt: now.toISOString(),
-      };
-      const meetings = [meeting, ...readLocal<MeetingData[]>(LOCAL_MEETINGS_KEY, [])];
-      writeLocal(LOCAL_MEETINGS_KEY, meetings);
-      return ok(meeting, 'Meeting created');
-    }
-    return this.request<MeetingData>('/api/meetings', { method: 'POST', body: JSON.stringify(data) });
-  }
-  async getMeetings(filters?: { status?: string }) {
-    if (FRONTEND_ONLY) {
-      const meetings = readLocal<MeetingData[]>(LOCAL_MEETINGS_KEY, []);
-      const currentUser = getCurrentSessionUser();
-      const accessibleOrganizations = getAccessibleOrganizationsForUser(
-        currentUser,
-        readLocal<OrganizationData[]>(LOCAL_ORGS_KEY, []),
-      );
-
-      let visibleMeetings = meetings;
-
-      if (currentUser && currentUser.role !== 'Admin' && accessibleOrganizations.length === 0) {
-        visibleMeetings = [];
-      }
-
-      return ok(filters?.status ? visibleMeetings.filter((m) => m.status === filters.status) : visibleMeetings);
-    }
-    const params = filters?.status ? `?status=${filters.status}` : '';
-    return this.request<MeetingData[]>(`/api/meetings${params}`, { method: 'GET' });
-  }
-  async getMeeting(id: string) {
-    if (FRONTEND_ONLY) {
-      const meeting = readLocal<MeetingData[]>(LOCAL_MEETINGS_KEY, []).find((m) => m._id === id);
-      if (!meeting) throw new ApiError('Meeting not found', 404);
-      return ok(meeting);
-    }
-    return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'GET' });
-  }
-  async getMeetingByCode(code: string) {
-    if (FRONTEND_ONLY) {
-      const meeting = readLocal<MeetingData[]>(LOCAL_MEETINGS_KEY, []).find((m) => m.meetingId === code);
-      if (!meeting) throw new ApiError('Meeting not found', 404);
-      return ok(meeting);
-    }
-    return this.request<MeetingData>(`/api/meetings/code/${code}`, { method: 'GET' });
-  }
+  async createMeeting(data: { title: string; description?: string; scheduledStartTime?: string; scheduledEndTime?: string }) { return this.request<MeetingData>('/api/meetings', { method: 'POST', body: JSON.stringify(data) }); }
+  async getMeetings(filters?: { status?: string }) { const params = filters?.status ? `?status=${filters.status}` : ''; return this.request<MeetingData[]>(`/api/meetings${params}`, { method: 'GET' }); }
+  async getMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'GET' }); }
+  async getMeetingByCode(code: string) { return this.request<MeetingData>(`/api/meetings/code/${code}`, { method: 'GET' }); }
   async updateMeeting(id: string, data: Partial<{ title: string; description: string; scheduledStartTime: string; scheduledEndTime: string }>) { return this.request<MeetingData>(`/api/meetings/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   async deleteMeeting(id: string) {
     if (FRONTEND_ONLY) { writeLocal(LOCAL_MEETINGS_KEY, readLocal<MeetingData[]>(LOCAL_MEETINGS_KEY, []).filter((m) => m._id !== id)); return ok(null); }
@@ -582,33 +510,31 @@ class ApiService {
   async joinMeetingAsParticipant(id: string) { if (FRONTEND_ONLY) return this.getMeeting(id); return this.request<MeetingData>(`/api/meetings/${id}/join`, { method: 'POST' }); }
 
   // ─── Tasks ─────────────────────────────────────────────────
-  async createTask(data: { title: string; description?: string; priority?: string; assignee?: string; meetingId?: string; dueDate?: string }) {
-    if (FRONTEND_ONLY) {
-      const task: TaskData = { _id: crypto.randomUUID(), title: data.title, description: data.description ?? null, status: 'Open', priority: (data.priority as TaskData['priority']) ?? 'Medium', assignee: null, meetingId: data.meetingId ?? null, dueDate: data.dueDate ?? null, createdAt: new Date().toISOString() };
-      const tasks = [task, ...readLocal<TaskData[]>(LOCAL_TASKS_KEY, [])]; writeLocal(LOCAL_TASKS_KEY, tasks); return ok(task);
-    }
-    return this.request<TaskData>('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
-  }
-  async getTasks(filters?: { status?: string }) { if (FRONTEND_ONLY) { const tasks=readLocal<TaskData[]>(LOCAL_TASKS_KEY, []); return ok(filters?.status ? tasks.filter(t=>t.status===filters.status) : tasks); } const params = filters?.status ? `?status=${filters.status}` : ''; return this.request<TaskData[]>(`/api/tasks${params}`, { method: 'GET' }); }
+  async createTask(data: { title: string; description?: string; priority?: string; assignee?: string; meetingId?: string; dueDate?: string }) { return this.request<TaskData>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }); }
+  async getTasks(filters?: { status?: string }) { const params = filters?.status ? `?status=${filters.status}` : ''; return this.request<TaskData[]>(`/api/tasks${params}`, { method: 'GET' }); }
   async updateTask(id: string, data: Partial<{ title: string; status: string; priority: string; assignee: string; dueDate: string }>) { return this.request<TaskData>(`/api/tasks/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
   async deleteTask(id: string) { return this.request(`/api/tasks/${id}`, { method: 'DELETE' }); }
 
-  // ─── AI ────────────────────────────────────────────────────
   async submitTranscript(meetingId: string, text: string) { return this.request<TranscriptData>('/api/ai/transcript', { method: 'POST', body: JSON.stringify({ meetingId, text }) }); }
   async getTranscript(meetingId: string) { return this.request<TranscriptData>(`/api/ai/transcript/${meetingId}`, { method: 'GET' }); }
   async retryTranscriptProcessing(meetingId: string) { return this.request(`/api/ai/transcript/${meetingId}/retry`, { method: 'POST' }); }
 
-  // ─── Notifications ─────────────────────────────────────────
   async getNotifications(limit = 20) { return this.request<NotificationData[]>(`/api/notifications?limit=${limit}`, { method: 'GET' }); }
   async getUnreadCount() { return this.request<{ count: number }>('/api/notifications/unread-count', { method: 'GET' }); }
   async markNotificationRead(id: string) { return this.request(`/api/notifications/${id}/read`, { method: 'PUT' }); }
   async markAllNotificationsRead() { return this.request('/api/notifications/read-all', { method: 'PUT' }); }
 }
 
+export const apiService = new ApiService();
+
 export class ApiError extends Error {
   public statusCode: number;
   public errors?: unknown;
-  constructor(message: string, statusCode: number, errors?: unknown) { super(message); this.name = 'ApiError'; this.statusCode = statusCode; this.errors = errors; }
+  
+  constructor(message: string, statusCode: number, errors?: unknown) { 
+    super(message); 
+    this.name = 'ApiError'; 
+    this.statusCode = statusCode; 
+    this.errors = errors; 
+  }
 }
-
-export const apiService = new ApiService();

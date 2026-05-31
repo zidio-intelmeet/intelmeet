@@ -24,51 +24,53 @@ import env from "./configs/env";
 
 const app: Express = express();
 
+// 🚀 CRITICAL FIX FOR DEV TUNNELS AND PROXIES:
+app.set("trust proxy", true);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🚀 Bulletproof CORS Setup
-const allowedOrigins = [
-  env.CORS_ORIGIN, 
-  "http://localhost:5173", 
-  "http://localhost:5174",  // Support both ports for dev flexibility
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174"
-].filter(Boolean);
-
+// 🚀 BULLETPROOF CORS FOR DEV TUNNELS & LOCALHOST
 app.use(
   cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+    origin: function (origin, callback) {
+      // Automatically allows the requesting origin to bypass strict array filtering
+      callback(null, true);
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Tenant-ID", "X-Tenant-Slug"],
-    credentials: true
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Tenant-ID",
+      "X-Tenant-Slug",
+      "Accept"
+    ],
+    credentials: true, // Tells the backend to accept cookies/tokens
+    optionsSuccessStatus: 200 // Fixes preflight OPTIONS request drops in proxies
   })
 );
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+// 🚀 HELMET ADJUSTMENT FOR CORS COMPATIBILITY
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false, // Prevents Helmet from overriding your CORS rules
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
     },
-  },
-  hsts: {
-    maxAge: 31536000, // 1 year
-    includeSubDomains: true,
-    preload: true,
-  },
-}));
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
+
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 
