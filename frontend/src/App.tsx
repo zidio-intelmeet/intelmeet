@@ -10,6 +10,8 @@ import { AuthProvider } from './context/AuthProvider'
 import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
+import TermsPage from './pages/TermsPage'
+import PrivacyPage from './pages/PrivacyPage'
 import AuthSuccessPage from './pages/AuthSuccessPage'
 import VideoRoom from './pages/VideoRoom'
 import PostMeetingDashboard from './pages/PostMeetingDashboard'
@@ -367,6 +369,8 @@ function Layout() {
         <Route path="/workspace" element={<WorkspacePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignUpPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/profile" element={<WorkspaceFrame><ProfilePage /></WorkspaceFrame>} />
         <Route path="/teams" element={<WorkspaceFrame><TeamsPage /></WorkspaceFrame>} />
         <Route path="/meetings" element={<WorkspaceFrame><MeetingsPage /></WorkspaceFrame>} />

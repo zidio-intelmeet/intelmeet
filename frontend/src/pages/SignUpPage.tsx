@@ -326,9 +326,9 @@ export default function SignUpPage() {
                 />
                 <span className="text-sm text-slate-600 leading-relaxed">
                   I agree to the{' '}
-                  <button type="button" className="font-semibold text-indigo-600 hover:underline">Terms of Service</button>
+                  <Link to="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-indigo-600 hover:underline">Terms of Service</Link>
                   {' '}and{' '}
-                  <button type="button" className="font-semibold text-indigo-600 hover:underline">Privacy Policy</button>
+                  <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-indigo-600 hover:underline">Privacy Policy</Link>
                 </span>
               </label>
               {errors.terms && <p className="mt-1.5 text-xs font-medium text-rose-600">{errors.terms}</p>}
