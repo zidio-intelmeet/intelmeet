@@ -1,7 +1,7 @@
 import dotenvFlow from "dotenv-flow";
 import { z } from "zod";
 
-dotenvFlow.config();
+dotenvFlow.config({ silent: true });
 
 const trimString = (value: unknown) =>
   typeof value === "string" ? value.trim() : value;
@@ -21,10 +21,12 @@ const durationSchema = z.string().regex(
 );
 
 export const envSchema = z.object({
-  NODE_ENV: z.preprocess(
-    emptyStringToUndefined,
-    z.enum(["development", "test", "production"]).default("development")
-  ),
+  NODE_ENV: z
+    .preprocess(
+      emptyStringToUndefined,
+      z.enum(["development", "test", "production"])
+    )
+    .default("development"),
 
   PORT: z.preprocess(
     trimString,
@@ -35,24 +37,23 @@ export const envSchema = z.object({
 
   CORS_ORIGIN: z.preprocess(trimString, z.string().url()),
 
-  LOG_LEVEL: z.preprocess(
-    emptyStringToUndefined,
-    z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info")
-  ),
+  LOG_LEVEL: z
+    .preprocess(
+      emptyStringToUndefined,
+      z.enum(["fatal", "error", "warn", "info", "debug", "trace"])
+    )
+    .default("info"),
   JWT_ACCESS_SECRET: z.preprocess(trimString, z.string().min(32)),
   JWT_REFRESH_SECRET: z.preprocess(trimString, z.string().min(32)),
-  JWT_ACCESS_EXPIRES_IN: z.preprocess(
-    emptyStringToUndefined,
-    durationSchema.default("15m")
-  ),
-  JWT_REFRESH_EXPIRES_IN: z.preprocess(
-    emptyStringToUndefined,
-    durationSchema.default("7d")
-  ),
-  DEFAULT_TENANT_ID: z.preprocess(
-    emptyStringToUndefined,
-    z.string().trim().min(1).default("public")
-  ),
+  JWT_ACCESS_EXPIRES_IN: z
+    .preprocess(emptyStringToUndefined, durationSchema)
+    .default("15m"),
+  JWT_REFRESH_EXPIRES_IN: z
+    .preprocess(emptyStringToUndefined, durationSchema)
+    .default("7d"),
+  DEFAULT_TENANT_ID: z
+    .preprocess(emptyStringToUndefined, z.string().trim().min(1))
+    .default("public"),
   SYNC_INDEXES_ON_BOOT: z
     .enum(["true", "false"])
     .optional()

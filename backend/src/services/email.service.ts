@@ -35,12 +35,12 @@ export class EmailService {
         invitationLink,
       } = params;
 
-      logger.info(`📧 Sending invitation email to ${memberEmail} from ${adminEmail}`, {
+      logger.info({
         memberEmail,
         memberName,
         organizationName,
         adminName,
-      });
+      }, `📧 Sending invitation email to ${memberEmail} from ${adminEmail}`);
 
       const emailHtml = `
         <h2>Welcome to ${organizationName}!</h2>
@@ -70,7 +70,7 @@ export class EmailService {
       });
 
       if (error) {
-        logger.error("Resend API Error", { error });
+        logger.error({ error }, "Resend API Error");
         console.error("❌ RESEND ERROR:", error);
         console.log("\n🔗 INVITATION LINK (development fallback):");
         console.log(invitationLink);
@@ -78,12 +78,12 @@ export class EmailService {
         return false;
       }
 
-      logger.info("Email sent successfully", { data });
+      logger.info({ data }, "Email sent successfully");
       return true;
     } catch (error) {
-      logger.error("Failed to send invitation email", {
+      logger.error({
         error: error instanceof Error ? error.message : String(error),
-      });
+      }, "Failed to send invitation email");
       console.error("❌ EMAIL SERVICE EXCEPTION:", error);
       return false;
     }

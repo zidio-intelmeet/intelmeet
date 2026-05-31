@@ -200,7 +200,7 @@ export const addMember = asyncHandler(async (req: Request, res: Response) => {
   // Send invitation email with token
   const invitationTokenPayload = {
     invitationId: `${orgId}-${normalizedEmail}`,
-    organizationId: orgId,
+    organizationId: orgId as string,
     memberEmail: normalizedEmail,
     memberName: normalizedEmail.split('@')[0],
     role: memberRole as "Admin" | "Member" | "Viewer",
