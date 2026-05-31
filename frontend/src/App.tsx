@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { Navbar } from './components/layout/Navbar'
 import { CtaSection } from './sections/CtaSection'
@@ -11,10 +11,11 @@ import { useAuth } from './context/auth'
 import LoginPage from './pages/LoginPage'
 import SignUpPage from './pages/SignUpPage'
 import AuthSuccessPage from './pages/AuthSuccessPage'
-import MeetingRoom from './pages/MeetingRoom'
 import VideoRoom from './pages/VideoRoom'
+import PostMeetingDashboard from './pages/PostMeetingDashboard'
 import JoinMeeting from './pages/JoinMeeting'
 import MeetingsPage from './pages/MeetingsPage'
+import PostMeetingsList from './pages/PostMeetingsList'
 import AcceptInvitationPage from './pages/AcceptInvitationPage'
 import TeamsPage from './pages/TeamsPage'
 import logo from './assets/logowobg.png'
@@ -369,10 +370,12 @@ function Layout() {
         <Route path="/profile" element={<WorkspaceFrame><ProfilePage /></WorkspaceFrame>} />
         <Route path="/teams" element={<WorkspaceFrame><TeamsPage /></WorkspaceFrame>} />
         <Route path="/meetings" element={<WorkspaceFrame><MeetingsPage /></WorkspaceFrame>} />
+        <Route path="/post-meetings" element={<WorkspaceFrame><PostMeetingsList /></WorkspaceFrame>} />
         <Route path="/schedule" element={<SchedulePage />} />
         <Route path="/settings" element={<WorkspaceSettingsPage />} />
-        <Route path="/meeting/:meetingId" element={<MeetingRoom />} />
+        <Route path="/meeting/:meetingId" element={<VideoRoom />} />
         <Route path="/dashboard/meetings/:meetingId/video" element={<VideoRoom />} />
+        <Route path="/dashboard/meetings/:meetingId/review" element={<PostMeetingDashboard />} />
         <Route path="/meetings/:code/join" element={<JoinMeeting />} />
       </Routes>
     </>

@@ -1,52 +1,43 @@
-import { STATUS_CODES, StatusCode } from "../constants/status-codes";
-
 export class ApiError extends Error {
-  public readonly statusCode: StatusCode;
-  public readonly isOperational: boolean;
-  public readonly errors?: unknown;
+  public statusCode: number;
+  public errors?: any;
+  public success: boolean;
+  public isOperational: boolean;
 
-  constructor(
-    statusCode: StatusCode,
-    message: string,
-    errors?: unknown,
-    isOperational = true
-  ) {
+  constructor(statusCode: number, message: string, errors?: any, isOperational: boolean = true) {
     super(message);
     this.name = "ApiError";
     this.statusCode = statusCode;
     this.errors = errors;
+    this.success = false;
     this.isOperational = isOperational;
 
-    Error.captureStackTrace(this, this.constructor);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 
-  static badRequest(message = "Bad Request", errors?: unknown) {
-    return new ApiError(STATUS_CODES.BAD_REQUEST, message, errors);
+  static badRequest(message: string = "Bad Request", errors?: any) {
+    return new ApiError(400, message, errors);
   }
 
-  static unauthorized(message = "Unauthorized") {
-    return new ApiError(STATUS_CODES.UNAUTHORIZED, message);
+  static unauthorized(message: string = "Unauthorized", errors?: any) {
+    return new ApiError(401, message, errors);
   }
 
-  static forbidden(message = "Forbidden") {
-    return new ApiError(STATUS_CODES.FORBIDDEN, message);
+  static forbidden(message: string = "Forbidden", errors?: any) {
+    return new ApiError(403, message, errors);
   }
 
-  static notFound(message = "Not Found") {
-    return new ApiError(STATUS_CODES.NOT_FOUND, message);
+  static notFound(message: string = "Not Found", errors?: any) {
+    return new ApiError(404, message, errors);
   }
 
-  static conflict(message = "Conflict") {
-    return new ApiError(STATUS_CODES.CONFLICT, message);
+  static conflict(message: string = "Conflict", errors?: any) {
+    return new ApiError(409, message, errors);
   }
 
-  static server(message = "Internal Server Error") {
-    return new ApiError(STATUS_CODES.INTERNAL_SERVER_ERROR, message);
+  static server(message: string = "Internal Server Error", errors?: any) {
+    return new ApiError(500, message, errors, false);
   }
 }
-
-/*
-  ? Usage:
-  * throw new ApiError(404, "Not found");
-  * throw ApiError.badRequest("Bad request");
- */

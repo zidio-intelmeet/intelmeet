@@ -24,6 +24,11 @@ export type MeetingEvent =
   | 'join-room'
   | 'offer'
   | 'answer'
+  | 'ice-candidate'
+  // 🚀 FIX: Added required WebRTC definitions for webrtcManager.ts
+  | 'webrtc:offer'
+  | 'webrtc:answer'
+  | 'webrtc:ice-candidate'
 
 export type SocketEventData = Record<string, unknown>
 
@@ -170,9 +175,9 @@ export class SocketService {
       return () => undefined
     }
 
-    this.socket.on(event, handler)
+    this.socket.on(event, handler as any)
     return () => {
-      this.socket?.off(event, handler)
+      this.socket?.off(event, handler as any)
     }
   }
 }

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/auth';
 import { apiService } from '../services/api';
-import { transitionPath } from '../workspace/shared';
+
+const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`;
 
 interface InvitationData {
   valid: boolean;
@@ -60,7 +61,7 @@ export const AcceptInvitationPage = () => {
     }
 
     if (!token) return;
-    if (invitationData && user.email.toLowerCase() !== invitationData.memberEmail.toLowerCase()) {
+    if (invitationData && user.email?.toLowerCase() !== invitationData.memberEmail.toLowerCase()) {
       setError(`Please login with ${invitationData.memberEmail} to accept this invite.`);
       return;
     }

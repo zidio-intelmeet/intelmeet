@@ -30,7 +30,23 @@ export function HeroSection() {
     }
 
     setMeetingError('')
-    setMeetingMessage(`Ready to join "${trimmedCode}".`)
+    
+    // Extract code if a full URL is entered
+    let code = trimmedCode
+    try {
+      if (trimmedCode.startsWith('http://') || trimmedCode.startsWith('https://')) {
+        const urlObj = new URL(trimmedCode)
+        const pathParts = urlObj.pathname.split('/')
+        const meetingsIdx = pathParts.indexOf('meetings')
+        if (meetingsIdx !== -1 && pathParts[meetingsIdx + 1]) {
+          code = pathParts[meetingsIdx + 1]
+        }
+      }
+    } catch {
+      // Fallback to raw string if parsing fails
+    }
+
+    navigate(`/transition?to=${encodeURIComponent(`/meetings/${code}/join`)}`)
   }
 
   function handleHostMeeting() {

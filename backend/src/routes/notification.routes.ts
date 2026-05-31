@@ -15,17 +15,20 @@ const router = Router();
 router.use(requireAuth);
 router.use(apiRateLimiter);
 
-// GET /api/notifications - Get all notifications
+// GET /api/notifications?limit=20 - Get all notifications
 router.get("/", getNotifications);
 
-// GET /api/notifications/unread/count - Get unread count
-router.get("/unread/count", getUnreadCount);
+// GET /api/notifications/unread-count - Get unread count
+// ✅ FIX: was /unread/count — frontend calls /unread-count
+router.get("/unread-count", getUnreadCount);
 
-// POST /api/notifications/:notificationId/read - Mark as read
-router.post("/:notificationId/read", markAsRead);
+// PUT /api/notifications/read-all - Mark all as read
+// ✅ FIX: was POST — frontend calls PUT
+router.put("/read-all", markAllAsRead);
 
-// POST /api/notifications/read-all - Mark all as read
-router.post("/read-all", markAllAsRead);
+// PUT /api/notifications/:notificationId/read - Mark as read
+// ✅ FIX: was POST — frontend calls PUT
+router.put("/:notificationId/read", markAsRead);
 
 // DELETE /api/notifications/:notificationId - Delete notification
 router.delete("/:notificationId", deleteNotification);

@@ -1,58 +1,83 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
 /**
  * This page handles the Google OAuth callback redirect.
- * After Google auth, the backend sets HttpOnly cookies (accessToken, refreshToken)
- * and redirects here. We call /api/auth/me to get the user profile,
- * then navigate to the dashboard.
+ * After Google auth, the backend sets an HttpOnly refreshToken cookie
+ * and redirects here. We call /api/auth/refresh to get a new access token,
+ * then /api/auth/me to get the user profile, then navigate to /workspace.
+ *
+ * IMPORTANT: This only works correctly when the GOOGLE_CALLBACK_URL in the
+ * backend .env points to the same domain as VITE_API_URL (e.g. both localhost:3001).
+ * If the callback goes through a different domain (like ngrok), the cookie will
+ * be set for that domain and the /api/auth/refresh call will return 401.
  */
 export default function AuthSuccessPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const setAuth = useAuthStore((s) => s.setAuth);
   const setLoading = useAuthStore((s) => s.setLoading);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Check if Google redirected back with an error flag (e.g. /auth/success?error=google_auth_failed)
+    const oauthError = searchParams.get('error');
+    if (oauthError) {
+      const errorMessages: Record<string, string> = {
+        google_auth_failed: 'Google authentication was cancelled or failed.',
+        google_token_failed: 'Failed to exchange Google authorization code.',
+        google_token_missing: 'Google did not return a valid token.',
+        google_profile_failed: 'Failed to fetch your Google profile.',
+        google_profile_incomplete: 'Google profile data is incomplete.',
+        google_auth_exception: 'An unexpected error occurred during Google sign-in.',
+      };
+      setError(errorMessages[oauthError] ?? 'Google authentication failed.');
+      setLoading(false);
+      setTimeout(() => navigate('/login', { replace: true }), 3000);
+      return;
+    }
+
     const handleCallback = async () => {
       try {
-        // The backend already set the access token as an HttpOnly cookie.
-        // We need to refresh to get a fresh access token we can store in memory.
+        // The backend set a refreshToken HttpOnly cookie after Google auth.
+        // Call /refresh to exchange that cookie for a new access token in memory.
         const refreshRes = await apiService.refreshToken();
         const accessToken = refreshRes.data?.accessToken;
 
         if (!accessToken) {
-          throw new Error('Failed to obtain access token');
+          throw new Error(
+            'Could not get access token. Make sure GOOGLE_CALLBACK_URL in backend/.env ' +
+            'uses the same host as VITE_API_URL in frontend/.env (both should be localhost:3001).'
+          );
         }
 
         apiService.setAccessToken(accessToken);
 
-        // Now fetch the user profile
+        // Fetch user profile with the new access token
         const meRes = await apiService.getMe();
         if (meRes.data) {
           setAuth(meRes.data, accessToken);
-          navigate('/dashboard', { replace: true });
+          navigate('/workspace', { replace: true });
         } else {
-          throw new Error('Failed to fetch user profile');
+          throw new Error('Failed to fetch user profile after Google sign-in.');
         }
       } catch (err) {
         console.error('Auth callback error:', err);
-        setError(err instanceof Error ? err.message : 'Authentication failed');
+        setError(err instanceof Error ? err.message : 'Authentication failed. Please try again.');
         setLoading(false);
-        // Redirect to login after a delay
-        setTimeout(() => navigate('/login', { replace: true }), 3000);
+        setTimeout(() => navigate('/login', { replace: true }), 4000);
       }
     };
 
     handleCallback();
-  }, [navigate, setAuth, setLoading]);
+  }, [navigate, setAuth, setLoading, searchParams]);
 
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
+        <div className="text-center max-w-md px-6">
           <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
             <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
