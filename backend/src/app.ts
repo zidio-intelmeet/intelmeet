@@ -18,67 +18,78 @@ import taskRoutes from "./routes/task.routes";
 import notificationRoutes from "./routes/notification.routes";
 import organizationRoutes from "./routes/organization.routes";
 import invitationRoutes from "./routes/invitation.routes"; 
+import passwordRoutes from "./routes/password.routes";
 import sourceMapSupport from "source-map-support";
 sourceMapSupport.install();
 import env from "./configs/env";
+import { logger } from "./utils/logger";
 
 const app: Express = express();
+
+// 🚀 SECURITY FIX: Gate trust proxy behind environment/config to prevent IP spoofing
+app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false); 
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🚀 Bulletproof CORS Setup
-const allowedOrigins = [
-  env.CORS_ORIGIN, 
-  "http://localhost:5173", 
-  "http://localhost:5174",  // Support both ports for dev flexibility
-  "http://127.0.0.1:5173",
-  "http://127.0.0.1:5174"
-].filter(Boolean);
+// 🚀 SECURITY FIX: Explicit origin validation for credentials: true
+const allowedOrigins = [env.CORS_ORIGIN || "http://localhost:5173"];
+if (process.env.NODE_ENV === "development" && process.env.NGROK_URL) {
+    allowedOrigins.push(process.env.NGROK_URL);
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-      
-      if (allowedOrigins.indexOf(origin) !== -1) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "X-Tenant-ID", "X-Tenant-Slug"],
-    credentials: true
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "X-Tenant-ID",
+      "X-Tenant-Slug",
+      "Accept",
+      // Include Ngrok bypass headers to prevent preflight failures in dev
+      "x-tunnel-skip-antiphishing-page",
+      "ngrok-skip-browser-warning"
+    ],
+    credentials: true,
+    optionsSuccessStatus: 200
   })
 );
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https:"],
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
     },
-  },
-  hsts: {
-    maxAge: 31536000, // 1 year
-    includeSubDomains: true,
-    preload: true,
-  },
-}));
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+  })
+);
+
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 
-// Apply tenant context middleware globally
 app.use(attachTenantContext);
-
-//? Swagger Setup
 setupSwagger(app);
 
-//? Routes
 app.get("/", (req: Request, res: Response) => {
   res.redirect("/api/v1/health");
 });
@@ -93,11 +104,9 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/invitations", invitationRoutes); 
+app.use("/api/auth", passwordRoutes);
 
-// Not found handler (should be after routes)
 app.use(notFoundHandler);
-
-// Global error handler (should be last)
 app.use(errorHandler);
 
 export default app;

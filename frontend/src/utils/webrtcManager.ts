@@ -26,6 +26,10 @@ export class WebRTCManager {
   private remoteStreams: Map<string, RemoteStream> = new Map();
   private socket: Socket | null = null;
   private config: WebRTCConfig;
+  private iceCandidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
+  
+  // 🚀 CRITICAL FIX: Add callback to notify React when a stream arrives
+  public onRemoteStreamsChange?: (streams: RemoteStream[]) => void;
 
   constructor(config: Partial<WebRTCConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -35,16 +39,15 @@ export class WebRTCManager {
     this.socket = socket;
   }
 
-  /**
-   * Get local media stream (camera + microphone)
-   */
-  async getLocalStream(
-    audio = true,
-    video = true,
-    videoConstraints?: MediaTrackConstraints
-  ): Promise<MediaStream> {
+  // 🚀 CRITICAL FIX: Helper to push updates to the UI
+  private notifyStreamChange() {
+    if (this.onRemoteStreamsChange) {
+      this.onRemoteStreamsChange(Array.from(this.remoteStreams.values()));
+    }
+  }
+
+  async getLocalStream(audio = true, video = true, videoConstraints?: MediaTrackConstraints): Promise<MediaStream> {
     if (this.localStream) {
-      // Update existing stream tracks
       this.localStream.getTracks().forEach((track) => {
         if (track.kind === 'video' && !video) track.stop();
         if (track.kind === 'audio' && !audio) track.stop();
@@ -54,9 +57,7 @@ export class WebRTCManager {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         audio: audio ? { echoCancellation: true, noiseSuppression: true } : false,
-        video: video
-          ? videoConstraints || { width: { ideal: 1280 }, height: { ideal: 720 } }
-          : false,
+        video: video ? videoConstraints || { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
       });
       this.cameraTrack = this.localStream.getVideoTracks()[0] || null;
       this.screenTrack = null;
@@ -67,13 +68,8 @@ export class WebRTCManager {
     }
   }
 
-  getLocalStream_(): MediaStream | null {
-    return this.localStream;
-  }
+  getLocalStream_(): MediaStream | null { return this.localStream; }
 
-  /**
-   * Stop all local tracks
-   */
   stopLocalStream() {
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => track.stop());
@@ -83,26 +79,12 @@ export class WebRTCManager {
     this.screenTrack = null;
   }
 
-  /**
-   * Toggle audio track
-   */
   toggleAudio(enabled: boolean) {
-    if (this.localStream) {
-      this.localStream.getAudioTracks().forEach((track) => {
-        track.enabled = enabled;
-      });
-    }
+    if (this.localStream) this.localStream.getAudioTracks().forEach((track) => { track.enabled = enabled; });
   }
 
-  /**
-   * Toggle video track
-   */
   toggleVideo(enabled: boolean) {
-    if (this.localStream) {
-      this.localStream.getVideoTracks().forEach((track) => {
-        track.enabled = enabled;
-      });
-    }
+    if (this.localStream) this.localStream.getVideoTracks().forEach((track) => { track.enabled = enabled; });
   }
 
   private async replaceOutgoingVideoTrack(nextTrack: MediaStreamTrack | null) {
@@ -114,26 +96,18 @@ export class WebRTCManager {
         peerConnection.addTrack(nextTrack, this.localStream);
       }
     });
-
     await Promise.all(updates);
   }
 
   async startScreenShare(): Promise<MediaStream> {
     const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
     const screenTrack = screenStream.getVideoTracks()[0];
+    if (!screenTrack) throw new Error('No screen track available.');
 
-    if (!screenTrack) {
-      throw new Error('No screen track available.');
-    }
-
-    if (!this.localStream) {
-      this.localStream = new MediaStream();
-    }
+    if (!this.localStream) this.localStream = new MediaStream();
 
     const currentVideoTrack = this.localStream.getVideoTracks()[0];
-    if (currentVideoTrack) {
-      this.localStream.removeTrack(currentVideoTrack);
-    }
+    if (currentVideoTrack) this.localStream.removeTrack(currentVideoTrack);
 
     this.localStream.addTrack(screenTrack);
     this.screenTrack = screenTrack;
@@ -144,11 +118,8 @@ export class WebRTCManager {
 
   async stopScreenShare(): Promise<MediaStream | null> {
     if (!this.localStream) return this.localStream;
-
     const currentVideoTrack = this.localStream.getVideoTracks()[0];
-    if (currentVideoTrack) {
-      this.localStream.removeTrack(currentVideoTrack);
-    }
+    if (currentVideoTrack) this.localStream.removeTrack(currentVideoTrack);
 
     this.screenTrack?.stop();
     this.screenTrack = null;
@@ -159,74 +130,73 @@ export class WebRTCManager {
     } else {
       await this.replaceOutgoingVideoTrack(null);
     }
-
     return this.localStream;
   }
 
-  /**
-   * Create peer connection with a remote user
-   */
   async createPeerConnection(
-    remoteSocketId: string,
-    initiator: boolean = false
+    remoteSocketId: string, 
+    initiator: boolean = false,
+    localUserId?: string,
+    localUserName?: string
   ): Promise<RTCPeerConnection> {
-    if (this.peerConnections.has(remoteSocketId)) {
-      return this.peerConnections.get(remoteSocketId)!;
-    }
+    if (this.peerConnections.has(remoteSocketId)) return this.peerConnections.get(remoteSocketId)!;
 
-    const peerConnection = new RTCPeerConnection({
-      iceServers: this.config.iceServers,
-    });
+    const peerConnection = new RTCPeerConnection({ iceServers: this.config.iceServers });
 
-    // Add local stream tracks
     if (this.localStream) {
       this.localStream.getTracks().forEach((track) => {
         peerConnection.addTrack(track, this.localStream!);
       });
     }
 
-    // Handle remote stream
     peerConnection.ontrack = (event) => {
-      console.log('Remote track received:', event.track.kind);
-      const remoteStream = event.streams[0];
-      if (remoteStream) {
-        this.remoteStreams.set(remoteSocketId, {
-          userId: remoteSocketId,
-          userName: 'User',
-          stream: remoteStream,
-          socketId: remoteSocketId,
-        });
+      console.log('⚡ [webrtc]: Received remote track', event.track.kind, 'from', remoteSocketId);
+      let remoteStream = event.streams[0];
+      if (!remoteStream) {
+        const existing = this.remoteStreams.get(remoteSocketId);
+        if (existing && existing.stream) {
+          remoteStream = existing.stream;
+          if (!remoteStream.getTracks().includes(event.track)) {
+            remoteStream.addTrack(event.track);
+          }
+        } else {
+          remoteStream = new MediaStream();
+          remoteStream.addTrack(event.track);
+        }
       }
+
+      this.remoteStreams.set(remoteSocketId, {
+        userId: this.remoteStreams.get(remoteSocketId)?.userId || remoteSocketId,
+        userName: this.remoteStreams.get(remoteSocketId)?.userName || 'User',
+        stream: remoteStream,
+        socketId: remoteSocketId,
+      });
+      this.notifyStreamChange(); // 🚀 Tell React to re-render the video grid!
     };
 
-    // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        this.socket?.emit('webrtc:ice-candidate', {
-          to: remoteSocketId,
-          candidate: event.candidate,
-        });
+        this.socket?.emit('webrtc:ice-candidate', { to: remoteSocketId, candidate: event.candidate });
       }
     };
 
-    // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state:', peerConnection.connectionState);
-      if (peerConnection.connectionState === 'failed') {
+      if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
         this.closePeerConnection(remoteSocketId);
       }
     };
 
     this.peerConnections.set(remoteSocketId, peerConnection);
 
-    // If initiator, create and send offer
     if (initiator) {
       try {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        this.socket?.emit('webrtc:offer', {
-          to: remoteSocketId,
+        this.socket?.emit('webrtc:offer', { 
+          to: remoteSocketId, 
           offer,
+          userId: localUserId,
+          userName: localUserName
         });
       } catch (err) {
         console.error('Failed to create offer:', err);
@@ -236,71 +206,73 @@ export class WebRTCManager {
     return peerConnection;
   }
 
-  /**
-   * Handle incoming offer
-   */
+  private async drainIceCandidates(remoteSocketId: string, peerConnection: RTCPeerConnection) {
+    const queue = this.iceCandidateQueues.get(remoteSocketId);
+    if (queue && queue.length > 0) {
+      console.log(`⚡ [webrtc]: Draining ${queue.length} queued ICE candidates for ${remoteSocketId}`);
+      for (const cand of queue) {
+        try {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(cand));
+        } catch (err) {
+          console.error('Failed to add queued ICE candidate:', err);
+        }
+      }
+      this.iceCandidateQueues.delete(remoteSocketId);
+    }
+  }
+
   async handleOffer(
-    remoteSocketId: string,
-    offer: RTCSessionDescriptionInit
+    remoteSocketId: string, 
+    offer: RTCSessionDescriptionInit,
+    localUserId?: string,
+    localUserName?: string
   ): Promise<void> {
     try {
-      const peerConnection = await this.createPeerConnection(remoteSocketId, false);
-
-      await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(offer)
-      );
-
+      const peerConnection = await this.createPeerConnection(remoteSocketId, false, localUserId, localUserName);
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      await this.drainIceCandidates(remoteSocketId, peerConnection);
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
-
-      this.socket?.emit('webrtc:answer', {
-        to: remoteSocketId,
+      this.socket?.emit('webrtc:answer', { 
+        to: remoteSocketId, 
         answer,
+        userId: localUserId,
+        userName: localUserName
       });
     } catch (err) {
       console.error('Failed to handle offer:', err);
     }
   }
 
-  /**
-   * Handle incoming answer
-   */
-  async handleAnswer(
-    remoteSocketId: string,
-    answer: RTCSessionDescriptionInit
-  ): Promise<void> {
+  async handleAnswer(remoteSocketId: string, answer: RTCSessionDescriptionInit): Promise<void> {
     try {
       const peerConnection = this.peerConnections.get(remoteSocketId);
       if (peerConnection) {
-        await peerConnection.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+        await this.drainIceCandidates(remoteSocketId, peerConnection);
       }
     } catch (err) {
       console.error('Failed to handle answer:', err);
     }
   }
 
-  /**
-   * Handle ICE candidate
-   */
-  async handleIceCandidate(
-    remoteSocketId: string,
-    candidate: RTCIceCandidateInit
-  ): Promise<void> {
+  async handleIceCandidate(remoteSocketId: string, candidate: RTCIceCandidateInit): Promise<void> {
     try {
       const peerConnection = this.peerConnections.get(remoteSocketId);
-      if (peerConnection) {
+      if (peerConnection && peerConnection.remoteDescription) {
         await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      } else {
+        if (!this.iceCandidateQueues.has(remoteSocketId)) {
+          this.iceCandidateQueues.set(remoteSocketId, []);
+        }
+        this.iceCandidateQueues.get(remoteSocketId)!.push(candidate);
+        console.log(`⏳ [webrtc]: Queued ICE candidate for ${remoteSocketId} (remoteDescription is null)`);
       }
     } catch (err) {
       console.error('Failed to add ICE candidate:', err);
     }
   }
 
-  /**
-   * Close specific peer connection
-   */
   closePeerConnection(remoteSocketId: string) {
     const peerConnection = this.peerConnections.get(remoteSocketId);
     if (peerConnection) {
@@ -308,40 +280,26 @@ export class WebRTCManager {
       this.peerConnections.delete(remoteSocketId);
     }
     this.remoteStreams.delete(remoteSocketId);
+    this.iceCandidateQueues.delete(remoteSocketId);
+    this.notifyStreamChange(); // 🚀 Tell React to remove the video!
   }
 
-  /**
-   * Close all peer connections
-   */
   closeAllPeerConnections() {
     this.peerConnections.forEach((pc) => pc.close());
     this.peerConnections.clear();
     this.remoteStreams.clear();
+    this.notifyStreamChange();
   }
 
-  /**
-   * Get remote streams
-   */
-  getRemoteStreams(): RemoteStream[] {
-    return Array.from(this.remoteStreams.values());
-  }
+  getRemoteStreams(): RemoteStream[] { return Array.from(this.remoteStreams.values()); }
+  getRemoteStream(socketId: string): RemoteStream | undefined { return this.remoteStreams.get(socketId); }
 
-  getRemoteStream(socketId: string): RemoteStream | undefined {
-    return this.remoteStreams.get(socketId);
-  }
-
-  /**
-   * Update remote user info
-   */
-  updateRemoteUserInfo(
-    socketId: string,
-    userId: string,
-    userName: string
-  ) {
+  updateRemoteUserInfo(socketId: string, userId: string, userName: string) {
     const remoteStream = this.remoteStreams.get(socketId);
     if (remoteStream) {
       remoteStream.userId = userId;
       remoteStream.userName = userName;
+      this.notifyStreamChange();
     }
   }
 }

@@ -66,7 +66,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuth: (user, accessToken) => {
     apiService.setAccessToken(accessToken);
     try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify({ user, accessToken }));
+      // 🔒 Design Principle 5: Don't store accessToken in localStorage (unless mock)
+      const sessionData = FRONTEND_ONLY ? { user, accessToken } : { user };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
     } catch { }
     set({
       user,
@@ -90,9 +92,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set((state) => {
       const nextUser = state.user ? { ...state.user, ...profile } : null
 
-      if (nextUser && state.accessToken) {
+      if (nextUser) {
         try {
-          localStorage.setItem(SESSION_KEY, JSON.stringify({ user: nextUser, accessToken: state.accessToken }))
+          const currentSession = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ ...currentSession, user: nextUser }));
         } catch { }
       }
 
@@ -141,9 +144,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.getItem(FRONTEND_ONLY ? MOCK_SESSION_KEY : LEGACY_SESSION_KEY);
       if (localSession) {
         const parsed = JSON.parse(localSession) as { user?: User; accessToken?: string };
-        if (parsed.user && parsed.accessToken) {
-          get().setAuth(parsed.user, parsed.accessToken);
-          return;
+        if (parsed.user) {
+          if (FRONTEND_ONLY && parsed.accessToken) {
+            get().setAuth(parsed.user, parsed.accessToken);
+            return;
+          }
+          
+          // Restore user immediately to avoid login bounce, but DO NOT return.
+          // Continue to refreshToken to securely retrieve the access token into memory.
+          get().setUser(parsed.user);
         }
       }
     } catch {
@@ -170,13 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = userResponse.data;
 
       if (user) {
-        set({
-          user,
-          accessToken: newAccessToken,
-          isAuthenticated: true,
-          isLoading: false,
-          error: null,
-        });
+        get().setAuth(user, newAccessToken);
       } else {
         // Failed to get user data
         set({ isLoading: false, isAuthenticated: false });
@@ -318,3 +321,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+// 🚀 FIX: Sync user state across iframes and tabs!
+// If the user updates their profile inside the Settings iframe, this will instantly 
+// catch the localStorage change and update the main meeting window's UI without a refresh.
+window.addEventListener('storage', (event) => {
+  if (event.key === SESSION_KEY && event.newValue) {
+    try {
+      const parsed = JSON.parse(event.newValue);
+      if (parsed.user) useAuthStore.getState().setUser(parsed.user);
+    } catch (e) { console.error("Failed to sync session storage", e); }
+  }
+});

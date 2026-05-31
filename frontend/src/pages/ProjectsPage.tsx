@@ -18,7 +18,7 @@ const prioColors: Record<string, string> = {
 export default function ProjectsPage() {
   const user = useAuthStore(s => s.user);
   const [tasks, setTasks] = useState<TaskData[]>([]);
-  const [members, setMembers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string; email: string; role?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState('');
@@ -35,7 +35,7 @@ export default function ProjectsPage() {
       const formattedTasks = (r.data || []).map(t => ({
         ...t,
         status: t.status === 'todo' ? 'Open' : t.status === 'in_progress' ? 'In Progress' : t.status === 'done' ? 'Completed' : t.status,
-        priority: t.priority.charAt(0).toUpperCase() + t.priority.slice(1)
+        priority: t.priority ? t.priority.charAt(0).toUpperCase() + t.priority.slice(1) : 'Medium'
       })) as TaskData[];
       setTasks(formattedTasks); 
     } catch {} 
@@ -46,12 +46,20 @@ export default function ProjectsPage() {
     try {
       const res = await apiService.getOrganizations();
       if (res.data && res.data.length > 0) {
-        setMembers(res.data[0].members.map(m => ({ id: m.userId._id, name: m.userId.name, email: m.userId.email })));
+        setMembers(
+          res.data[0].members
+            .filter((m: any) => m && m.userId)
+            .map((m: any) => ({ id: m.userId._id, name: m.userId.name, email: m.userId.email, role: m.role }))
+        );
       }
     } catch {}
   };
 
   useEffect(() => { load(); loadOrg(); }, []);
+
+  const isOrgAdmin = () => {
+    return user?.role === 'Admin' || members.some(m => m.id === user?.id && m.role === 'Admin');
+  };
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,7 +84,7 @@ export default function ProjectsPage() {
   };
 
   const handleDragStart = (e: DragEvent, task: TaskData) => {
-    if (user?.role !== 'Admin' && task.assignee?._id !== user?.id) {
+    if (!isOrgAdmin() && task.assignee?._id !== user?.id) {
       e.preventDefault();
       return;
     }
@@ -96,7 +104,7 @@ export default function ProjectsPage() {
     if (!task || task.status === targetStatus) return;
     
     // Check permission
-    if (user?.role !== 'Admin' && task.assignee?._id !== user?.id) {
+    if (!isOrgAdmin() && task.assignee?._id !== user?.id) {
       return;
     }
 
@@ -123,7 +131,7 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div><h1 className="text-2xl font-bold text-slate-900">Projects</h1><p className="text-slate-500 text-sm mt-1">Kanban board for task management</p></div>
-        {user?.role === 'Admin' && (
+        {isOrgAdmin() && (
           <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Add Task
           </button>
@@ -184,7 +192,7 @@ export default function ProjectsPage() {
             
             <div className="flex-1 space-y-3 min-h-37.5">
               {byStatus(col.id).map(task => {
-                const canDrag = user?.role === 'Admin' || task.assignee?._id === user?.id;
+                const canDrag = isOrgAdmin() || task.assignee?._id === user?.id;
                 
                 return (
                   <div 
@@ -195,7 +203,7 @@ export default function ProjectsPage() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <h4 className="text-sm font-medium text-slate-900 flex-1 pr-2">{task.title}</h4>
-                      {user?.role === 'Admin' && (
+                      {isOrgAdmin() && (
                         <button onClick={() => del(task._id)} className="p-1 rounded hover:bg-red-50 text-slate-300 hover:text-red-500 shrink-0">
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
                         </button>

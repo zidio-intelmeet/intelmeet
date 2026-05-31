@@ -77,9 +77,9 @@ export default function TeamsPage() {
   const [newTeamName, setNewTeamName] = useState('');
   const [pendingInvites, setPendingInvites] = useState<Array<Invitation & { organizationId: string; organizationName: string }>>([]);
 
-  const refreshOrganization = async () => {
+  const refreshOrganization = async (showLoading = false) => {
     try {
-      setIsLoading(true);
+      if (showLoading) setIsLoading(true);
       const response = await apiService.getOrganizations();
       if (response?.data && Array.isArray(response.data) && response.data.length > 0) {
         setOrganization(response.data[0]);
@@ -96,7 +96,7 @@ export default function TeamsPage() {
     } catch (error) {
       console.error('Failed to fetch organization:', error);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   };
 
@@ -105,12 +105,8 @@ export default function TeamsPage() {
       setIsCreatingOrg(true);
       const orgName = name?.trim() || `${user?.name}'s Organization`;
       await apiService.createOrganization(orgName);
-      // Refresh organizations
-      const response = await apiService.getOrganizations();
-      if (response?.data && Array.isArray(response.data) && response.data.length > 0) {
-        setOrganization(response.data[0]);
-        setTeamName(response.data[0].name);
-      }
+      // Refresh organizations without full page loading
+      await refreshOrganization(false);
       setIsCreateOrgModalOpen(false);
       setOrganizationDraftError('');
     } catch (error) {
@@ -143,11 +139,11 @@ export default function TeamsPage() {
   };
 
   useEffect(() => {
-    void refreshOrganization();
+    void refreshOrganization(true);
   }, []);
 
   useEffect(() => {
-    const handleLocalUpdate = () => { void refreshOrganization(); };
+    const handleLocalUpdate = () => { void refreshOrganization(false); };
     window.addEventListener('intellmeet:local-data-updated', handleLocalUpdate as EventListener);
     window.addEventListener('focus', handleLocalUpdate);
     return () => {
@@ -157,13 +153,14 @@ export default function TeamsPage() {
   }, []);
 
   useEffect(() => {
-    if (!user?.email || user.role === 'Admin') {
+    const email = user?.email;
+    if (!email || user?.role === 'Admin') {
       setPendingInvites([]);
       return;
     }
 
     const loadPendingInvites = () => {
-      apiService.getPendingInvitationsForEmail(user.email)
+      apiService.getPendingInvitationsForEmail(email)
         .then((response) => setPendingInvites(response.data || []))
         .catch(() => setPendingInvites([]));
     };
@@ -192,8 +189,8 @@ export default function TeamsPage() {
   };
 
   const filteredMembers = organization?.members?.filter(member => 
-    member.userId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.userId?.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    (member.userId?.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (member.userId?.email || '').toLowerCase().includes(searchQuery.toLowerCase())
   ) || [];
 
   const activeTeam = teams.find((team) => team.id === activeTeamId) || null;
@@ -203,7 +200,7 @@ export default function TeamsPage() {
 
   const currentUserOrgRole = organization?.members?.find(m => m.userId?._id === user?.id)?.role;
   const isAdmin = user?.role === 'Admin' || currentUserOrgRole === 'Admin';
-  const isAcceptedMember = organization?.members?.some((member) => member.userId.email.toLowerCase() === user?.email?.toLowerCase()) ?? false;
+  const isAcceptedMember = organization?.members?.some((member) => member.userId?.email?.toLowerCase() === user?.email?.toLowerCase()) ?? false;
   const shouldShowPendingInviteState = !isAdmin && pendingInvites.length > 0 && !isAcceptedMember;
 
   const handleSaveTeamName = async () => {
@@ -592,12 +589,12 @@ export default function TeamsPage() {
             </div>
           </div>
 
-          {isAdmin && (organization?.invitations?.filter((invite) => invite.status === 'Pending').length ?? 0) > 0 && (
+          {isAdmin && (organization?.invitations?.filter((invite) => invite.status?.toLowerCase() === 'pending').length ?? 0) > 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl p-6">
               <h2 className="text-lg font-bold text-gray-900 mb-5">Pending Invites</h2>
               <div className="space-y-3">
                 {organization?.invitations
-                  ?.filter((invite) => invite.status === 'Pending')
+                  ?.filter((invite) => invite.status?.toLowerCase() === 'pending')
                   .map((invite) => (
                     <div key={invite._id} className="rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3">
                       <p className="font-semibold text-gray-900">{invite.invitedMemberName || invite.email}</p>

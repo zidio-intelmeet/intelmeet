@@ -1,49 +1,38 @@
-/**
- * Invitation Token Utility - Generate and verify invitation tokens for member signup
- */
-
 import jwt from "jsonwebtoken";
-import { env } from "../configs/env";
+import env from "../configs/env";
 
 export interface InvitationTokenPayload {
-  invitationId: string;
   organizationId: string;
+  invitationId: string;
+  type: "organization_invitation";
   memberEmail: string;
   memberName: string;
-  role: "Admin" | "Member" | "Viewer";
-  type: "invitation";
+  role: string;
 }
 
 /**
- * Generate invitation token for new members
- * This token is used in the invitation link and expires after 7 days
+ * 🚀 SECURITY FIX: Restored signed JWTs to prevent forged base64 invitations
  */
 export const generateInvitationToken = (payload: InvitationTokenPayload): string => {
-  return jwt.sign(payload, env.JWT_ACCESS_SECRET, {
+  return jwt.sign(payload, env.JWT_ACCESS_SECRET, { 
     expiresIn: "7d",
-    subject: payload.invitationId,
+    subject: payload.invitationId
   });
 };
 
-/**
- * Verify and decode invitation token
- */
+export const generateInvitationLink = (token: string): string => {
+  const frontendUrl = process.env.CORS_ORIGIN || "http://localhost:5173";
+  return `${frontendUrl}/accept-invitation?token=${token}`;
+};
+
 export const verifyInvitationToken = (token: string): InvitationTokenPayload | null => {
   try {
     const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET) as InvitationTokenPayload;
-    if (decoded.type !== "invitation") {
+    if (decoded.type !== "organization_invitation") {
       return null;
     }
     return decoded;
-  } catch (error) {
+  } catch {
     return null;
   }
-};
-
-/**
- * Generate invitation link for email
- */
-export const generateInvitationLink = (invitationToken: string, baseUrl?: string): string => {
-  const url = baseUrl || process.env.FRONTEND_URL || "http://localhost:5173";
-  return `${url}/accept-invitation?token=${invitationToken}`;
 };

@@ -1,4 +1,5 @@
-﻿import { format } from 'date-fns';
+import { format } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 import type { MeetingData } from '../services/api';
 
 export type MeetingDetailTab = 'summary' | 'transcript' | 'participants' | 'recording' | 'tasks';
@@ -20,14 +21,25 @@ function getParticipantName(p: MeetingData['participants'][number]): string {
 }
 
 export function MeetingExpandedDetails({ meeting, activeTab, setActiveTab }: { meeting: MeetingData; activeTab: MeetingDetailTab; setActiveTab: (tab: MeetingDetailTab) => void }) {
+  const navigate = useNavigate();
   return (
     <div className="border-t border-slate-100">
+      {/* Open Full Dashboard Banner */}
+      <div className="px-5 py-3 bg-gradient-to-r from-indigo-50 via-violet-50 to-indigo-50 border-b border-indigo-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+          <span className="text-xs font-semibold text-indigo-700">Post Meeting Dashboard</span>
+        </div>
+        <button onClick={() => navigate(`/dashboard/meetings/${meeting._id}/review`)} className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors shadow-sm">
+          Open Full Dashboard →
+        </button>
+      </div>
       <div className="flex overflow-x-auto border-b border-slate-100 bg-slate-50/60 px-4">
         {DETAIL_TABS.map((tab) => <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex shrink-0 items-center gap-1.5 border-b-2 px-4 py-3 text-xs font-semibold transition-colors ${activeTab === tab.id ? 'border-emerald-600 text-emerald-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><TabIcon path={tab.icon} />{tab.label}</button>)}
       </div>
       <div className="p-5">
         {activeTab === 'summary' && (meeting.summary ? <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{meeting.summary}</p> : <EmptyDetail icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" text="No AI summary generated for this meeting yet." />)}
-        {activeTab === 'transcript' && (meeting.transcript ? <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 max-h-72 overflow-y-auto"><p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">English Transcription</p><p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono">{meeting.transcript}</p></div> : <EmptyDetail icon="M4 6h16M4 10h16M4 14h10" text="No transcript available for this meeting." subtext="Transcription requires recording to be enabled." />)}
+        {activeTab === 'transcript' && (meeting.transcript ? <div className="rounded-xl bg-slate-50 border border-slate-100 p-4 max-h-72 overflow-y-auto"><p className="text-xs text-slate-400 mb-3 font-medium uppercase tracking-wide">Meeting Transcription</p><p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono">{meeting.transcript}</p></div> : <EmptyDetail icon="M4 6h16M4 10h16M4 14h10" text="No transcript available for this meeting." subtext="Transcription is generated from meeting conversation." />)}
         {activeTab === 'participants' && <ParticipantsDetail meeting={meeting} />}
         {activeTab === 'recording' && <RecordingDetail meeting={meeting} />}
         {activeTab === 'tasks' && <TasksDetail meeting={meeting} />}

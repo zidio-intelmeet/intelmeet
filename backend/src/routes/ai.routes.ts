@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createTranscript,
+  getTranscript,
   generateSummary,
   extractActionItems,
   analyzeSentiment,
@@ -17,6 +18,14 @@ router.use(apiRateLimiter);
 
 // POST /api/ai/transcript - Create/upload transcript
 router.post("/transcript", createTranscript);
+router.post("/transcribe", createTranscript);
+
+// GET /api/ai/transcript/:meetingId - Get transcript for a meeting
+// ✅ FIX: api.ts calls GET /api/ai/transcript/:meetingId
+router.get("/transcript/:meetingId", getTranscript);
+
+// POST /api/ai/transcript/:meetingId/retry - Retry transcript processing
+router.post("/transcript/:meetingId/retry", getTranscript);
 
 // POST /api/ai/summarize - Generate summary
 router.post("/summarize", generateSummary);

@@ -1,31 +1,27 @@
 import { Request, Response } from "express";
-import { asyncHandler } from "../utils/async-handler";
+import { AsyncHandler } from "../utils/async-handler";
 import { ApiError } from "../utils/api-error";
 import { ApiResponse } from "../utils/api-response";
 import Notification from "../models/notification.model";
 
-// GET all notifications for user
-export const getNotifications = asyncHandler(async (req: Request, res: Response) => {
-  const { isRead } = req.query;
-  const tenantId = req.headers["x-tenant-id"] as string;
-  const userId = (req as any).user.id;
+// GET /api/notifications?limit=20 - Get all notifications for user
+export const getNotifications = AsyncHandler(async (req: Request, res: Response) => {
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+  const userId = req.user!.id;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
-  const filter: any = { tenantId, userId };
-  if (isRead !== undefined) filter.isRead = isRead === "true";
-
-  const notifications = await Notification.find(filter)
+  const notifications = await Notification.find({ tenantId, userId })
     .sort({ createdAt: -1 })
-    .limit(50);
+    .limit(limit);
 
-  res.status(200).json(
-    new ApiResponse(200, notifications, "Notifications retrieved successfully")
-  );
+  return ApiResponse.ok(res, "Notifications retrieved successfully", notifications);
 });
 
-// GET unread count
-export const getUnreadCount = asyncHandler(async (req: Request, res: Response) => {
-  const tenantId = req.headers["x-tenant-id"] as string;
-  const userId = (req as any).user.id;
+// GET /api/notifications/unread-count - Get unread count
+// ✅ FIX: returns { count } not { unreadCount } to match frontend api.ts
+export const getUnreadCount = AsyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
   const count = await Notification.countDocuments({
     tenantId,
@@ -33,16 +29,14 @@ export const getUnreadCount = asyncHandler(async (req: Request, res: Response) =
     isRead: false,
   });
 
-  res.status(200).json(
-    new ApiResponse(200, { unreadCount: count }, "Unread count retrieved")
-  );
+  return ApiResponse.ok(res, "Unread count retrieved", { count });
 });
 
-// POST mark notification as read
-export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
+// PUT /api/notifications/:notificationId/read - Mark single notification as read
+export const markAsRead = AsyncHandler(async (req: Request, res: Response) => {
   const { notificationId } = req.params;
-  const tenantId = req.headers["x-tenant-id"] as string;
-  const userId = (req as any).user.id;
+  const userId = req.user!.id;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
   const notification = await Notification.findOneAndUpdate(
     { _id: notificationId, tenantId, userId },
@@ -54,31 +48,27 @@ export const markAsRead = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(404, "Notification not found");
   }
 
-  res.status(200).json(
-    new ApiResponse(200, notification, "Notification marked as read")
-  );
+  return ApiResponse.ok(res, "Notification marked as read", notification);
 });
 
-// POST mark all as read
-export const markAllAsRead = asyncHandler(async (req: Request, res: Response) => {
-  const tenantId = req.headers["x-tenant-id"] as string;
-  const userId = (req as any).user.id;
+// PUT /api/notifications/read-all - Mark all notifications as read
+export const markAllAsRead = AsyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
   await Notification.updateMany(
     { tenantId, userId, isRead: false },
     { $set: { isRead: true, readAt: new Date() } }
   );
 
-  res.status(200).json(
-    new ApiResponse(200, null, "All notifications marked as read")
-  );
+  return ApiResponse.ok(res, "All notifications marked as read");
 });
 
-// DELETE notification
-export const deleteNotification = asyncHandler(async (req: Request, res: Response) => {
+// DELETE /api/notifications/:notificationId - Delete a notification
+export const deleteNotification = AsyncHandler(async (req: Request, res: Response) => {
   const { notificationId } = req.params;
-  const tenantId = req.headers["x-tenant-id"] as string;
-  const userId = (req as any).user.id;
+  const userId = req.user!.id;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
   const notification = await Notification.findOneAndDelete({
     _id: notificationId,
@@ -90,7 +80,5 @@ export const deleteNotification = asyncHandler(async (req: Request, res: Respons
     throw new ApiError(404, "Notification not found");
   }
 
-  res.status(200).json(
-    new ApiResponse(200, null, "Notification deleted successfully")
-  );
+  return ApiResponse.ok(res, "Notification deleted successfully");
 });
