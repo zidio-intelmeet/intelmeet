@@ -35,7 +35,9 @@ export const envSchema = z.object({
 
   DATABASE_URL: z.preprocess(trimString, z.string().url()),
 
-  CORS_ORIGIN: z.preprocess(trimString, z.string().url()),
+  CORS_ORIGIN: z
+    .preprocess(emptyStringToUndefined, z.string().url())
+    .default("https://intelmeet-alpha.vercel.app"),
 
   LOG_LEVEL: z
     .preprocess(
@@ -66,10 +68,9 @@ export const envSchema = z.object({
 
   GOOGLE_CLIENT_ID: z.preprocess(trimString, z.string().min(1)),
   GOOGLE_CLIENT_SECRET: z.preprocess(trimString, z.string().min(1)),
-  GOOGLE_CALLBACK_URL: z.preprocess(
-    emptyStringToUndefined,
-    z.string().url().optional()
-  ),
+  GOOGLE_CALLBACK_URL: z
+    .preprocess(emptyStringToUndefined, z.string().url())
+    .default("https://intelmeet-ff4w.onrender.com/api/auth/google/callback"),
 
   CLOUDINARY_CLOUD_NAME: z.preprocess(trimString, z.string().min(1)),
   CLOUDINARY_API_KEY: z.preprocess(trimString, z.string().min(1)),
@@ -94,8 +95,7 @@ export const envSchema = z.object({
 
 type ParsedEnv = z.infer<typeof envSchema>;
 
-export type Env = Omit<ParsedEnv, "GOOGLE_CALLBACK_URL"> & {
-  GOOGLE_CALLBACK_URL: string;
+export type Env = ParsedEnv & {
   REDIS_URL?: string;
   OPENAI_API_KEY?: string;
   RESEND_API_KEY?: string;
@@ -115,9 +115,6 @@ export const env: Readonly<Env> = Object.freeze({
   DEFAULT_TENANT_ID: result.data.DEFAULT_TENANT_ID.toLowerCase(),
   SYNC_INDEXES_ON_BOOT:
     result.data.SYNC_INDEXES_ON_BOOT ?? result.data.NODE_ENV !== "production",
-  GOOGLE_CALLBACK_URL:
-    result.data.GOOGLE_CALLBACK_URL ??
-    `http://localhost:${result.data.PORT}/api/auth/google/callback`,
 });
 
 export default env;
