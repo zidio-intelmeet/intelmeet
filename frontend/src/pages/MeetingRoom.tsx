@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 import logo from "../assets/logowobg.png";
+import { apiService } from "../services/api";
 
 const SOCKET_SERVER_URL = "http://localhost:3001";
 
@@ -36,30 +37,30 @@ const MeetingRoom = () => {
   const socketRef = useRef<Socket | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const peersRef = useRef<{ [key: string]: Peer.Instance }>({});
-  const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-
-  function createPeer(userToSignal: string, callerID: string, currentStream: MediaStream) {
-    const peer = new Peer({ initiator: true, trickle: false, stream: currentStream });
-    peer.on("signal", (signal) => {
-      socketRef.current?.emit("offer", { userToSignal, callerID, signal });
-    });
-    peer.on("stream", (remoteStreamData) => setRemoteStream(remoteStreamData));
-    peer.on("error", (err) => console.error("❌ [peer error]:", err));
-    return peer;
-  }
-
-  function addPeer(incomingSignal: Peer.SignalData, callerID: string, currentStream: MediaStream) {
-    const peer = new Peer({ initiator: false, trickle: false, stream: currentStream });
-    peer.on("signal", (signal) => {
-      socketRef.current?.emit("answer", { signal, callerID });
-    });
-    peer.on("stream", (remoteStreamData) => setRemoteStream(remoteStreamData));
-    peer.on("error", (err) => console.error("❌ [peer error]:", err));
-    peer.signal(incomingSignal);
-    return peer;
-  }
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    function createPeer(userToSignal: string, callerID: string, currentStream: MediaStream) {
+      const peer = new Peer({ initiator: true, trickle: false, stream: currentStream });
+      peer.on("signal", (signal) => {
+        socketRef.current?.emit("offer", { userToSignal, callerID, signal });
+      });
+      peer.on("stream", (remoteStreamData) => setRemoteStream(remoteStreamData));
+      peer.on("error", (err) => console.error("❌ [peer error]:", err));
+      return peer;
+    }
+
+    function addPeer(incomingSignal: Peer.SignalData, callerID: string, currentStream: MediaStream) {
+      const peer = new Peer({ initiator: false, trickle: false, stream: currentStream });
+      peer.on("signal", (signal) => {
+        socketRef.current?.emit("answer", { signal, callerID });
+      });
+      peer.on("stream", (remoteStreamData) => setRemoteStream(remoteStreamData));
+      peer.on("error", (err) => console.error("❌ [peer error]:", err));
+      peer.signal(incomingSignal);
+      return peer;
+    }
+
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       .then((currentStream) => {
         setStream(currentStream);
@@ -91,8 +92,12 @@ const MeetingRoom = () => {
           if (peer) peer.signal(payload.signal);
         });
 
-        socketRef.current.on("chat-message", (data: { user: string; message: string }) => {
-          setChatMessages((prev) => [...prev, data]);
+        socketRef.current.on("chat:message", (data: { userId: string; userName?: string; message: string; timestamp: string }) => {
+          setChatMessages((prev) => {
+            // Avoid echoing your own messages
+            if (data.userId === socketRef.current?.id) return prev;
+            return [...prev, { user: data.userName || "Participant", message: data.message }];
+          });
         });
       })
       .catch((err) => {
@@ -154,15 +159,50 @@ const MeetingRoom = () => {
 
   const sendChatMessage = () => {
     if (chatInput.trim()) {
-      socketRef.current?.emit("chat-message", { user: "You", message: chatInput });
+      socketRef.current?.emit("chat:message", { meetingId, message: chatInput });
       setChatMessages((prev) => [...prev, { user: "You", message: chatInput }]);
       setChatInput("");
     }
   };
 
-  const endMeeting = () => {
+  const handleViewSummary = async () => {
+    try {
+      alert("Generating mid-meeting AI summary, please wait...");
+      const transcriptText = chatMessages.length > 0 
+        ? chatMessages.map(msg => `${msg.user}: ${msg.message}`).join('\n')
+        : "No voice or chat activity detected.";
+      await apiService.submitTranscript(meetingId as string, transcriptText);
+      const response = await apiService.generateSummary(meetingId as string);
+      if (response.data?.summary) {
+        alert(`AI Summary:\n\n${response.data.summary}`);
+      }
+    } catch (err) {
+      console.error("Failed to generate summary:", err);
+      alert("Could not generate summary at this time.");
+    }
+  };
+
+  const handleViewTranscript = () => {
+    const transcriptText = chatMessages.length > 0 
+      ? chatMessages.map(msg => `${msg.user}: ${msg.message}`).join('\n')
+      : "No voice or chat activity detected yet.";
+    alert(`Current Transcript:\n\n${transcriptText}`);
+  };
+
+  const endMeeting = async () => {
     if (window.confirm("Are you sure you want to end this meeting?")) {
       socketRef.current?.disconnect();
+
+      try {
+        const transcriptText = chatMessages.length > 0 
+          ? chatMessages.map(msg => `${msg.user}: ${msg.message}`).join('\n')
+          : "No voice or chat activity detected.";
+        await apiService.submitTranscript(meetingId as string, transcriptText);
+        await apiService.generateSummary(meetingId as string);
+        await apiService.extractActionItems(meetingId as string);
+        await apiService.analyzeSentiment(meetingId as string);
+      } catch (err) { console.error("AI Gen Failed:", err); }
+
       stream?.getTracks().forEach((track) => track.stop());
       navigate(`/transition?to=${encodeURIComponent("/workspace")}`);
     }
@@ -323,7 +363,7 @@ const MeetingRoom = () => {
 
               <button
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white text-xl transition hover:bg-white/20"
-                onClick={() => alert("AI Summary will be generated after the meeting ends.")}
+                onClick={handleViewSummary}
                 title="AI summary"
                 aria-label="AI summary"
               >
@@ -332,7 +372,7 @@ const MeetingRoom = () => {
 
               <button
                 className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white text-xl transition hover:bg-white/20"
-                onClick={() => alert("AI Transcript will be available after recording completes.")}
+                onClick={handleViewTranscript}
                 title="AI transcript"
                 aria-label="AI transcript"
               >
@@ -428,4 +468,3 @@ const MeetingRoom = () => {
 };
 
 export default MeetingRoom;
-

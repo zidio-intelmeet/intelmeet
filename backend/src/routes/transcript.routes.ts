@@ -14,11 +14,13 @@ const router = Router();
 router.use(requireAuth);
 router.use(apiRateLimiter);
 
-// GET /api/transcripts/:meetingId - Get all transcripts for a meeting
-router.get("/:meetingId", getTranscripts);
-
+// ✅ FIX: /single/:transcriptId MUST come BEFORE /:meetingId 
+// to prevent "single" from being matched as a meetingId
 // GET /api/transcripts/single/:transcriptId - Get single transcript
 router.get("/single/:transcriptId", getTranscriptById);
+
+// GET /api/transcripts/:meetingId - Get all transcripts for a meeting
+router.get("/:meetingId", getTranscripts);
 
 // POST /api/transcripts - Create transcript
 router.post("/", createTranscript);

@@ -2,21 +2,21 @@ export class ApiError extends Error {
   public statusCode: number;
   public errors?: any;
   public success: boolean;
+  public isOperational: boolean;
 
-  constructor(statusCode: number, message: string, errors?: any) {
+  constructor(statusCode: number, message: string, errors?: any, isOperational: boolean = true) {
     super(message);
+    this.name = "ApiError";
     this.statusCode = statusCode;
     this.errors = errors;
     this.success = false;
+    this.isOperational = isOperational;
 
-    // Maintains proper stack trace for where our error was thrown (only available on V8 engines like Node)
     if (Error.captureStackTrace) {
       Error.captureStackTrace(this, this.constructor);
     }
   }
 
-  // --- Static Helper Methods for Controllers ---
-  
   static badRequest(message: string = "Bad Request", errors?: any) {
     return new ApiError(400, message, errors);
   }
@@ -38,6 +38,6 @@ export class ApiError extends Error {
   }
 
   static server(message: string = "Internal Server Error", errors?: any) {
-    return new ApiError(500, message, errors);
+    return new ApiError(500, message, errors, false);
   }
 }

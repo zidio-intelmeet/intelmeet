@@ -1,97 +1,82 @@
 import { Resend } from 'resend';
-import { ApiError } from '../utils/api-error';
+import { logger } from '../utils/logger';
 
-let resendClient: Resend | null = null;
+// Initialize only if key exists, otherwise let the service handle it
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
-const getResend = () => {
-  if (!resendClient) {
-    if (!process.env.RESEND_API_KEY) {
-      console.warn("⚠️ RESEND_API_KEY missing. Emails will not send.");
-      resendClient = new Resend('re_dummy_key'); 
-    } else {
-      resendClient = new Resend(process.env.RESEND_API_KEY);
+export const EmailService = {
+  /**
+   * Sends a standard email.
+   * In Dev: Logs to console (No-op).
+   * In Prod: Requires valid RESEND_API_KEY.
+   * Returns: boolean (success status).
+   */
+  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+    // DEV: No-op mock
+    if (process.env.NODE_ENV !== "production") {
+      logger.info(`[Email Service] Mock Send To: ${to}, Subject: ${subject}`);
+      return true;
     }
-  }
-  return resendClient;
-};
 
-export class EmailService {
-  
-  static async sendWelcomeEmail(toEmail: string, userName: string) {
-    const resend = getResend();
+    // PROD: Fail fast if misconfigured
+    if (!resend) {
+      logger.error("Email configuration error: RESEND_API_KEY missing in production environment");
+      throw new Error("Email service is not configured correctly in production.");
+    }
+
     try {
-      console.log(`📧 Attempting to send welcome email to ${toEmail}...`);
-      const data = await resend.emails.send({
-        from: 'IntellMeet <onboarding@resend.dev>', 
-        to: [toEmail], 
-        subject: 'Welcome to IntellMeet Workspace!',
-        html: `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2>Welcome to IntellMeet, ${userName}! 🚀</h2>
-            <p>Your workspace is ready. You can now schedule meetings, track tasks, and use AI to summarize your calls.</p>
-            <p>Let's build something great.</p>
-          </div>
-        `
+      await resend.emails.send({
+        from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+        to: [to],
+        subject,
+        html,
       });
-      return data;
-    } catch (error: any) {
-      console.error("❌ Failed to send email:", error);
-      throw new ApiError(500, `Email service failed: ${error.message}`);
+      return true;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : typeof error === "string"
+          ? error
+          : JSON.stringify(error);
+      logger.error(`Email send failed: ${errorMessage}`);
+      return false;
     }
-  }
+  },
 
-  static async sendMeetingInvite(toEmail: string, meetingCode: string, hostName: string) {
-    const resend = getResend();
-    try {
-      const data = await resend.emails.send({
-        from: 'IntellMeet <onboarding@resend.dev>',
-        to: [toEmail], 
-        subject: `${hostName} invited you to a meeting`,
-        html: `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2>You have been invited to a meeting!</h2>
-            <p><strong>Host:</strong> ${hostName}</p>
-            <p><strong>Room Code:</strong> ${meetingCode}</p>
-            <a href="http://localhost:5173/meeting/${meetingCode}" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px;">Join Meeting Now</a>
-          </div>
-        `
-      });
-      return data;
-    } catch (error: any) {
-      throw new ApiError(500, `Failed to send invite: ${error.message}`);
-    }
-  }
+  async sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+    return this.sendEmail(
+      email, 
+      "Welcome to IntelMeet", 
+      `<h1>Hi ${name}, welcome!</h1><p>Your workspace is ready.</p>`
+    );
+  },
 
-  static async sendInvitationEmail(data: {
+  async sendInvitationEmail(data: {
     memberEmail: string;
     memberName: string;
-    adminEmail: string;
     adminName: string;
     organizationName: string;
-    invitationToken: string;
     invitationLink: string;
-  }) {
-    const resend = getResend();
-    try {
-      console.log(`📧 Sending org invite to ${data.memberEmail}...`);
-      const response = await resend.emails.send({
-        from: 'IntellMeet <onboarding@resend.dev>',
-        to: [data.memberEmail], 
-        subject: `${data.adminName} invited you to join ${data.organizationName}`,
-        html: `
-          <div style="font-family: sans-serif; color: #333;">
-            <h2>You've been invited!</h2>
-            <p><strong>${data.adminName}</strong> (${data.adminEmail}) has invited you to join the <strong>${data.organizationName}</strong> workspace on IntellMeet.</p>
-            <a href="${data.invitationLink}" style="background-color: #059669; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 15px;">Accept Invitation</a>
-          </div>
-        `
-      });
-      return true; 
-    } catch (error: any) {
-      console.error("❌ Failed to send org invite:", error);
-      return false; 
-    }
+  }): Promise<boolean> {
+    return this.sendEmail(
+      data.memberEmail,
+      `${data.adminName} invited you to join ${data.organizationName}`,
+      `<p>Hi ${data.memberName}, you've been invited to ${data.organizationName}.</p>
+      <a href="${data.invitationLink}">Accept Invitation</a>`
+    );
+  },
+
+  async sendPasswordResetEmail(email: string, name: string, resetLink: string): Promise<boolean> {
+    return this.sendEmail(
+      email,
+      "Reset your IntelMeet password",
+      `<h2>Hi ${name},</h2>
+      <p>You requested a password reset. Click the link below to set a new password:</p>
+      <p><a href="${resetLink}" style="background:#4f46e5;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Reset Password</a></p>
+      <p>This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>`
+    );
   }
-}
+};
 
 export default EmailService;

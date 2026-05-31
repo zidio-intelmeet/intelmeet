@@ -148,7 +148,7 @@ export const analyzeSentiment = asyncHandler(async (req: Request, res: Response)
 // GET /api/ai/summary/:meetingId - Get meeting summary
 export const getSummary = asyncHandler(async (req: Request, res: Response) => {
   const { meetingId } = req.params;
-  const tenantId = req.headers["x-tenant-id"] as string;
+  const tenantId = req.tenantId || req.user!.tenantId;
 
   const meeting = await Meeting.findOne({ _id: meetingId, tenantId });
   if (!meeting) {
@@ -164,6 +164,34 @@ export const getSummary = asyncHandler(async (req: Request, res: Response) => {
       200,
       { meetingId, summary: meeting.summary, actionItems: meeting.actionItems },
       "Summary retrieved successfully"
+    )
+  );
+});
+
+// GET /api/ai/transcript/:meetingId - Get transcript for a meeting
+// ✅ FIX: api.ts calls getTranscript(meetingId) → GET /api/ai/transcript/:meetingId
+export const getTranscript = asyncHandler(async (req: Request, res: Response) => {
+  const { meetingId } = req.params;
+  const tenantId = req.tenantId || req.user!.tenantId;
+
+  const meeting = await Meeting.findOne({ _id: meetingId, tenantId });
+  if (!meeting) {
+    throw new ApiError(404, "Meeting not found");
+  }
+
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        _id: meeting._id,
+        meetingId: meeting._id,
+        fullText: meeting.transcript || "",
+        summary: meeting.summary || null,
+        actionItems: meeting.actionItems || [],
+        keyTopics: [],
+        processingStatus: meeting.transcript ? "completed" : "pending",
+      },
+      "Transcript retrieved successfully"
     )
   );
 });

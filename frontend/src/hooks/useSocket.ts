@@ -1,22 +1,35 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../stores/authStore';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+let envUrl = import.meta.env.VITE_API_URL;
+if (envUrl === 'http://localhost:3000') {
+  envUrl = 'http://localhost:3001'; // Force correct port if env is stale
+}
+const SOCKET_URL = envUrl || 'http://localhost:3001';
 
 /**
  * Custom hook for Socket.io connection management
  * Handles connection lifecycle and event subscription
  */
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const user = useAuthStore((s) => s.user);
   const accessToken = useAuthStore((s) => s.accessToken);
 
-  useEffect(() => {
-    if (!user || !accessToken) return;
+  // We keep a ref to the socket internally to allow stable emit/on/off callback references
+  const socketRef = useRef<Socket | null>(null);
+  socketRef.current = socket;
 
-    const socket = io(SOCKET_URL, {
+  useEffect(() => {
+    if (!user || !accessToken) {
+      setSocket(null);
+      setIsConnected(false);
+      return;
+    }
+
+    const socketInstance = io(SOCKET_URL, {
       query: {
         userId: user.id,
         tenantId: user.tenantId,
@@ -31,24 +44,27 @@ export function useSocket() {
       reconnectionAttempts: 5,
     });
 
-    socketRef.current = socket;
+    setSocket(socketInstance);
+    setIsConnected(socketInstance.connected);
 
-    // Connection events
-    socket.on('connect', () => {
-      console.log('✅ [Socket] Connected:', socket.id);
+    socketInstance.on('connect', () => {
+      console.log('✅ [Socket] Connected:', socketInstance.id);
+      setIsConnected(true);
     });
 
-    socket.on('connect_error', (err) => {
+    socketInstance.on('connect_error', (err) => {
       console.error('❌ [Socket] Connection error:', err);
     });
 
-    socket.on('disconnect', (reason) => {
+    socketInstance.on('disconnect', (reason) => {
       console.log('🔌 [Socket] Disconnected:', reason);
+      setIsConnected(false);
     });
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      socketInstance.disconnect();
+      setSocket(null);
+      setIsConnected(false);
     };
   }, [user, accessToken]);
 
@@ -67,8 +83,11 @@ export function useSocket() {
       console.warn(`⚠️ [Socket] Cannot subscribe to "${event}" - socket not connected`);
       return () => {};
     }
-    socketRef.current.on(event, handler);
-    return () => socketRef.current?.off(event, handler);
+    const currentSocket = socketRef.current;
+    currentSocket.on(event, handler);
+    return () => {
+      currentSocket.off(event, handler);
+    };
   }, []);
 
   // Unsubscribe from event
@@ -77,10 +96,10 @@ export function useSocket() {
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket,
     emit,
     on,
     off,
-    isConnected: socketRef.current?.connected || false,
+    isConnected,
   };
 }

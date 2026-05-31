@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
   const [errors, setErrors] = useState<LoginErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const transitionPath = (destination: string) => `/transition?to=${encodeURIComponent(destination)}`
@@ -27,6 +28,17 @@ export default function LoginPage() {
   // 🚀 This actually redirects the user to your backend Google Auth route!
   apiService.googleLogin();
 };
+
+  const handleForgotPassword = async () => {
+    const emailPrompt = window.prompt("Enter your account email to receive a password reset link:");
+    if (!emailPrompt) return;
+    try {
+      await apiService.forgotPassword(emailPrompt.trim());
+      alert("If an account exists with that email, a password reset link has been sent.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to request password reset.");
+    }
+  };
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -168,11 +180,17 @@ export default function LoginPage() {
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
                   className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span className="text-sm text-slate-600">Remember me</span>
               </label>
-              <button type="button" className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+              <button 
+                type="button" 
+                onClick={handleForgotPassword}
+                className="text-sm font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+              >
                 Forgot password?
               </button>
             </div>

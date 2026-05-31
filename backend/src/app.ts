@@ -18,24 +18,35 @@ import taskRoutes from "./routes/task.routes";
 import notificationRoutes from "./routes/notification.routes";
 import organizationRoutes from "./routes/organization.routes";
 import invitationRoutes from "./routes/invitation.routes"; 
+import passwordRoutes from "./routes/password.routes";
 import sourceMapSupport from "source-map-support";
 sourceMapSupport.install();
 import env from "./configs/env";
+import { logger } from "./utils/logger";
 
 const app: Express = express();
 
-// 🚀 CRITICAL FIX FOR DEV TUNNELS AND PROXIES:
-app.set("trust proxy", true);
+// 🚀 SECURITY FIX: Gate trust proxy behind environment/config to prevent IP spoofing
+app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false); 
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 🚀 BULLETPROOF CORS FOR DEV TUNNELS & LOCALHOST
+// 🚀 SECURITY FIX: Explicit origin validation for credentials: true
+const allowedOrigins = [env.CORS_ORIGIN || "http://localhost:5173"];
+if (process.env.NODE_ENV === "development" && process.env.NGROK_URL) {
+    allowedOrigins.push(process.env.NGROK_URL);
+}
+
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Automatically allows the requesting origin to bypass strict array filtering
-      callback(null, true);
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -44,17 +55,19 @@ app.use(
       "X-Requested-With",
       "X-Tenant-ID",
       "X-Tenant-Slug",
-      "Accept"
+      "Accept",
+      // Include Ngrok bypass headers to prevent preflight failures in dev
+      "x-tunnel-skip-antiphishing-page",
+      "ngrok-skip-browser-warning"
     ],
-    credentials: true, // Tells the backend to accept cookies/tokens
-    optionsSuccessStatus: 200 // Fixes preflight OPTIONS request drops in proxies
+    credentials: true,
+    optionsSuccessStatus: 200
   })
 );
 
-// 🚀 HELMET ADJUSTMENT FOR CORS COMPATIBILITY
 app.use(
   helmet({
-    crossOriginResourcePolicy: false, // Prevents Helmet from overriding your CORS rules
+    crossOriginResourcePolicy: false,
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
@@ -64,7 +77,7 @@ app.use(
       },
     },
     hsts: {
-      maxAge: 31536000, // 1 year
+      maxAge: 31536000,
       includeSubDomains: true,
       preload: true,
     },
@@ -74,13 +87,9 @@ app.use(
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
 
-// Apply tenant context middleware globally
 app.use(attachTenantContext);
-
-//? Swagger Setup
 setupSwagger(app);
 
-//? Routes
 app.get("/", (req: Request, res: Response) => {
   res.redirect("/api/v1/health");
 });
@@ -95,11 +104,9 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/organizations", organizationRoutes);
 app.use("/api/invitations", invitationRoutes); 
+app.use("/api/auth", passwordRoutes);
 
-// Not found handler (should be after routes)
 app.use(notFoundHandler);
-
-// Global error handler (should be last)
 app.use(errorHandler);
 
 export default app;

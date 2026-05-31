@@ -2,11 +2,11 @@ import mongoose, { Document, Model, Schema } from "mongoose";
 
 export interface Organization extends Document {
   _id: mongoose.Types.ObjectId;
-  tenantId: string; // Same as org slug for now
+  tenantId: string;
   name: string;
   slug: string;
   description: string | null;
-  owner: mongoose.Types.ObjectId; // User ID
+  owner: mongoose.Types.ObjectId;
   members: Array<{
     userId: mongoose.Types.ObjectId;
     role: "Admin" | "Member" | "Viewer";
@@ -23,7 +23,7 @@ export interface Organization extends Document {
   settings: {
     isPrivate: boolean;
     allowPublicJoin: boolean;
-    defaultMeetingDuration: number; // Minutes
+    defaultMeetingDuration: number;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -95,25 +95,16 @@ const organizationSchema = new Schema<Organization>(
       },
     ],
     settings: {
-      isPrivate: {
-        type: Boolean,
-        default: true,
-      },
-      allowPublicJoin: {
-        type: Boolean,
-        default: false,
-      },
-      defaultMeetingDuration: {
-        type: Number,
-        default: 60,
-        min: 15,
-        max: 480, // 8 hours max
-      },
+      isPrivate: { type: Boolean, default: true },
+      allowPublicJoin: { type: Boolean, default: false },
+      defaultMeetingDuration: { type: Number, default: 60, min: 15, max: 480 },
     },
   },
   { timestamps: true }
 );
 
+// 🚀 FIX: Removed duplicate schema.index() calls that caused the warnings.
+// unique: true inside the field definitions automatically handles these.
 organizationSchema.index({ owner: 1 });
 
 const Organization: Model<Organization> = mongoose.model<Organization>(

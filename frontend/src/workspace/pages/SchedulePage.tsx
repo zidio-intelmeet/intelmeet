@@ -1,8 +1,8 @@
-﻿import { useEffect, useState, type DragEvent, type FormEvent } from 'react'
+import { useEffect, useState, type DragEvent, type FormEvent } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/auth'
 import { useAuthStore } from '../../stores/authStore'
-import { apiService, type OrganizationData } from '../../services/api'
+import { apiService, type OrganizationData, type TaskData } from '../../services/api'
 import WorkspaceFrame from '../components/WorkspaceFrame'
 import {
   scheduleColumns,
@@ -10,6 +10,21 @@ import {
   type ScheduleSortOrder,
   type ScheduleTask,
 } from '../shared'
+
+// Map between frontend column IDs and backend task statuses
+const columnToStatus: Record<ScheduleColumnId, string> = {
+  todo: 'Open',
+  progress: 'In Progress',
+  scheduled: 'Completed',
+}
+const statusToColumn: Record<string, ScheduleColumnId> = {
+  'Open': 'todo',
+  'In Progress': 'progress',
+  'Completed': 'scheduled',
+  'todo': 'todo',
+  'in_progress': 'progress',
+  'done': 'scheduled',
+}
 
 type TeamBucket = {
   id: string
@@ -21,14 +36,8 @@ const LOCAL_TEAMS_KEY = 'intellmeet-local-teams'
 export default function SchedulePage() {
   const { user } = useAuth()
   const isLoading = useAuthStore((state) => state.isLoading)
-  const [tasks, setTasks] = useState<ScheduleTask[]>(() => {
-    try {
-      const raw = localStorage.getItem('intellmeet-schedule-tasks')
-      return raw ? JSON.parse(raw) as ScheduleTask[] : []
-    } catch {
-      return []
-    }
-  })
+  // ✅ FIX: Tasks now loaded from backend API, not localStorage
+  const [tasks, setTasks] = useState<ScheduleTask[]>([])
   const [members, setMembers] = useState<{ id: string; name: string; email: string }[]>([])
   const [teams, setTeams] = useState<TeamBucket[]>([])
   const [taskTitle, setTaskTitle] = useState('')
@@ -44,15 +53,43 @@ export default function SchedulePage() {
   })
   const [sortMenuColumn, setSortMenuColumn] = useState<ScheduleColumnId | null>(null)
   const [formMenu, setFormMenu] = useState<'team' | 'assignee' | 'list' | null>(null)
+  const [taskError, setTaskError] = useState('')
 
   const currentUser = user!
   const isAdmin = currentUser.role === 'Admin'
 
-  useEffect(() => {
+  // Convert backend TaskData to frontend ScheduleTask
+  function taskDataToScheduleTask(task: TaskData): ScheduleTask {
+    return {
+      id: task._id,
+      title: task.title,
+      note: task.description || '',
+      dueAt: task.dueDate || '',
+      columnId: statusToColumn[task.status] || 'todo',
+      createdAt: new Date(task.createdAt).getTime(),
+      assigneeId: task.assignee?._id || '',
+      assigneeName: task.assignee?.name || 'Unassigned',
+      assigneeEmail: task.assignee?.email || '',
+      teamId: '',
+      teamName: '',
+    }
+  }
+
+  // ✅ FIX: Load tasks from backend API
+  async function loadTasks() {
     try {
-      localStorage.setItem('intellmeet-schedule-tasks', JSON.stringify(tasks))
-    } catch { /* localStorage unavailable */ }
-  }, [tasks])
+      const response = await apiService.getTasks();
+      const backendTasks = (response.data || []).map(taskDataToScheduleTask);
+      setTasks(backendTasks);
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+    }
+  }
+
+  useEffect(() => {
+    loadTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const loadMembers = async () => {
@@ -104,46 +141,40 @@ export default function SchedulePage() {
     return <Navigate to="/login" replace />
   }
 
-  function handleAddTask(event: FormEvent<HTMLFormElement>) {
+  // ✅ FIX: Create task via backend API instead of only localStorage
+  async function handleAddTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setTaskError('')
 
-    if (!isAdmin) {
+    if (!isAdmin) return
+    if (!taskTitle.trim()) {
+      setTaskError('Task title is required')
       return
     }
 
-    if (!taskTitle.trim() || !teamId) {
-      return
-    }
-
-    const selectedTeam = teams.find((team) => team.id === teamId)
     const selectedMember = members.find((member) => member.id === assigneeId)
 
-    if (!selectedTeam || !selectedMember) {
-      return
-    }
-
-    setTasks((currentTasks) => [
-      {
-        id: crypto.randomUUID(),
+    try {
+      await apiService.createTask({
         title: taskTitle.trim(),
-        note: taskNote.trim(),
-        dueAt: taskDueAt,
-        columnId: targetColumn,
-        createdAt: Date.now(),
-        assigneeId: selectedMember.id,
-        assigneeName: selectedMember.name,
-        assigneeEmail: selectedMember.email,
-        teamId: selectedTeam.id,
-        teamName: selectedTeam.name,
-      },
-      ...currentTasks,
-    ])
-    setTaskTitle('')
-    setTaskNote('')
-    setTaskDueAt('')
-    setTargetColumn('todo')
-    setAssigneeId('')
-    setTeamId('')
+        description: taskNote.trim() || undefined,
+        assignee: selectedMember?.id || currentUser.id,
+        priority: 'Medium',
+        dueDate: taskDueAt || undefined,
+      })
+      
+      // Reload from server
+      await loadTasks()
+
+      setTaskTitle('')
+      setTaskNote('')
+      setTaskDueAt('')
+      setTargetColumn('todo')
+      setAssigneeId('')
+      setTeamId('')
+    } catch (err) {
+      setTaskError(err instanceof Error ? err.message : 'Failed to create task')
+    }
   }
 
   function handleDragStart(event: DragEvent<HTMLElement>, taskId: string) {
@@ -156,28 +187,38 @@ export default function SchedulePage() {
     event.dataTransfer.effectAllowed = 'move'
   }
 
-  function handleDrop(event: DragEvent<HTMLDivElement>, columnId: ScheduleColumnId) {
+  // ✅ FIX: Update task status via backend API on drag-drop
+  async function handleDrop(event: DragEvent<HTMLDivElement>, columnId: ScheduleColumnId) {
     event.preventDefault()
     const taskId = event.dataTransfer.getData('text/plain')
     const task = tasks.find((currentTask) => currentTask.id === taskId)
 
-    if (!task || (!isAdmin && task.assigneeEmail !== currentUser.email)) {
-      return
-    }
+    if (!task || (!isAdmin && task.assigneeEmail !== currentUser.email)) return
+    if (task.columnId === columnId) return
 
+    // Optimistic update
     setTasks((currentTasks) =>
-      currentTasks.map((task) => (task.id === taskId ? { ...task, columnId } : task)),
+      currentTasks.map((t) => (t.id === taskId ? { ...t, columnId } : t)),
     )
+
+    try {
+      await apiService.updateTask(taskId, { status: columnToStatus[columnId] })
+    } catch {
+      // Revert on failure
+      await loadTasks()
+    }
   }
 
-  function handleDeleteDoneTask(taskId: string) {
-    if (!isAdmin) {
-      return
-    }
+  // ✅ FIX: Delete task via backend API
+  async function handleDeleteDoneTask(taskId: string) {
+    if (!isAdmin) return
 
-    setTasks((currentTasks) =>
-      currentTasks.filter((task) => !(task.id === taskId && task.columnId === 'scheduled')),
-    )
+    try {
+      await apiService.deleteTask(taskId)
+      setTasks((currentTasks) => currentTasks.filter((task) => task.id !== taskId))
+    } catch {
+      await loadTasks()
+    }
   }
 
   function getColumnTasks(columnId: ScheduleColumnId) {
@@ -237,6 +278,7 @@ export default function SchedulePage() {
 
           {isAdmin ? (
           <form onSubmit={handleAddTask} className="mt-6 grid gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-4 xl:grid-cols-[1fr_1fr_1fr_1.1fr_1fr_auto_auto]">
+            {taskError && <div className="col-span-full text-sm font-semibold text-rose-500 bg-rose-50 p-2 rounded-lg">{taskError}</div>}
             <label className="block">
               <span className="text-xs font-bold uppercase text-emerald-700">Task</span>
               <input

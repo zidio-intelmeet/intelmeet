@@ -22,6 +22,7 @@ export const sanitizeUser = (user: {
   email: string;
   avatar: string | null;
   createdAt: Date;
+  role?: string;
 }) => ({
   id: user._id.toString(),
   tenantId: user.tenantId,
@@ -29,24 +30,28 @@ export const sanitizeUser = (user: {
   email: user.email,
   avatar: user.avatar,
   createdAt: user.createdAt,
+  role: user.role || "Member",
 });
 
 export const registerUser = async (
   tenantId: string,
   name: string,
   email: string,
-  password: string
+  password: string,
+  role?: "Admin" | "Member"
 ) => {
   const normalizedEmail = normalizeEmail(email);
   const exists = await User.findOne({ tenantId, email: normalizedEmail });
   if (exists) throw ApiError.conflict("Email already registered");
 
   const hashed = await hashPassword(password);
+  
   const user = await User.create({
     tenantId,
     name,
     email: normalizedEmail,
     password: hashed,
+    role: role || "Member", 
   });
 
   const tokens = generateTokenPair(
@@ -57,15 +62,18 @@ export const registerUser = async (
 };
 
 export const loginUser = async (
-  tenantId: string,
+  _tenantId: string, // We ignore this parameter for login now
   email: string,
   password: string
 ) => {
   const normalizedEmail = normalizeEmail(email);
+  
+  // 🚀 CRITICAL FIX: Only search by email so you don't get locked out of your account
+  // if you joined a different workspace or created an organization!
   const user = await User.findOne({
-    tenantId,
     email: normalizedEmail,
   }).select("+password");
+  
   if (!user) throw ApiError.unauthorized("Invalid email or password");
 
   if (!user.password) {
@@ -93,13 +101,11 @@ export const findOrCreateGoogleUser = async (profile: {
 }) => {
   const normalizedEmail = normalizeEmail(profile.email);
   let user = await User.findOne({
-    tenantId: profile.tenantId,
     googleId: profile.googleId,
   });
 
   if (!user) {
     const existing = await User.findOne({
-      tenantId: profile.tenantId,
       email: normalizedEmail,
     });
 
@@ -122,6 +128,7 @@ export const findOrCreateGoogleUser = async (profile: {
         googleId: profile.googleId,
         avatar: profile.avatar,
         password: null,
+        role: "Member"
       });
     }
   }

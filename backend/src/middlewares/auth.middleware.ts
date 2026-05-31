@@ -29,17 +29,22 @@ export const requireAuth = AsyncHandler(
     }
 
     const token = authHeader.split(" ")[1];
-    const payload = verifyAccessToken(token);
-
-    if (req.tenantId && req.tenantId !== payload.tenantId) {
-      throw ApiError.forbidden("Token does not grant access to this tenant");
+    let payload;
+    
+    try {
+      payload = verifyAccessToken(token);
+    } catch (err) {
+      // 🚀 CRITICAL FIX: If token expires, throw 401 (Not 500) so frontend triggers auto-refresh
+      throw ApiError.unauthorized("Invalid or expired token");
     }
 
-    const user = await User.findOne({
-      _id: payload.userId,
-      tenantId: payload.tenantId,
-    });
-    if (!user) throw ApiError.unauthorized("User no longer exists");
+    // 🚀 CRITICAL FIX: Look up user purely by ID. Ignore payload.tenantId 
+    // to prevent lockouts if the user created an organization.
+    const user = await User.findById(payload.userId);
+    
+    if (!user) {
+      throw ApiError.unauthorized("User no longer exists");
+    }
 
     req.tenantId = user.tenantId;
     req.user = {

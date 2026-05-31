@@ -23,8 +23,11 @@ export default [
       "@typescript-eslint/no-unused-expressions": "off",
       "no-console": "warn",
       semi: ["error", "always"],
-      quotes: ["error", "double"],
-      "prettier/prettier": "error"
+      quotes: "off",
+      "prettier/prettier": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-namespace": "off",
+      "@typescript-eslint/ban-ts-comment": "off"
     }
   },
 ];

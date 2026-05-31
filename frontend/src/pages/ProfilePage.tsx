@@ -13,9 +13,18 @@ export default function ProfilePage() {
   const handleSave = async () => {
     setSaving(true); setMsg('');
     try {
-      const res = await apiService.getMe(); // refresh user data after profile update would go here
-      // For now, update local state
-      if (user) setUser({ ...user, name, bio });
+      // ✅ FIX: Actually send profile data to backend via PUT /api/auth/profile
+      const formData = new FormData();
+      formData.append('name', name.trim());
+      formData.append('bio', bio.trim());
+      
+      await apiService.updateProfile(formData);
+      
+      // Refresh user data from server to confirm persistence
+      const res = await apiService.getMe();
+      if (res.data && user) {
+        setUser({ ...user, ...res.data });
+      }
       setMsg('Profile updated!');
     } catch (err) { setMsg(err instanceof Error ? err.message : 'Failed to save'); }
     finally { setSaving(false); }
