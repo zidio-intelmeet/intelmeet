@@ -21,23 +21,24 @@ RUN npm run build
 FROM nginx:alpine
 
 # Copy nginx configuration
-COPY nginx.conf /etc/nginx/nginx.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built app from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Create non-root user
-RUN addgroup -g 101 -S nginx && \
-    adduser -S nginx -u 101 2>/dev/null || true
+# Support running Nginx as non-root user
+RUN touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid /var/cache/nginx /var/log/nginx /usr/share/nginx/html
 
 USER nginx
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:80/index.html || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:8080/index.html || exit 1
 
 # Expose port
-EXPOSE 80
+EXPOSE 8080
 
 # Start nginx
 CMD ["nginx", "-g", "daemon off;"]
+
