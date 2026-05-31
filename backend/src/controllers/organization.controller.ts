@@ -151,7 +151,7 @@ export const addMember = AsyncHandler(async (req: Request, res: Response) => {
 
   // Create Token Payload
   const invitationTokenPayload: InvitationTokenPayload = {
-    organizationId: orgId.toString(),
+    organizationId: orgId as string,
     invitationId: `${orgId}-${normalizedEmail}`,
     memberEmail: normalizedEmail,
     memberName: normalizedEmail.split('@')[0],
