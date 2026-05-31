@@ -22,9 +22,17 @@ export const envSchema = z.object({
   // ── CORS ──────────────────────────────────────────────────────────────────
   CORS_ORIGIN: z
     .string()
-    .url()
     .optional()
-    .transform((v) => v ?? "https://intelmeet-alpha.vercel.app"),
+    .transform((v) => {
+      const val = v?.trim();
+      if (!val) return "https://intelmeet-alpha.vercel.app";
+      try {
+        new URL(val);
+        return val;
+      } catch {
+        return "https://intelmeet-alpha.vercel.app";
+      }
+    }),
 
   // ── Logging ───────────────────────────────────────────────────────────────
   LOG_LEVEL: z
@@ -54,12 +62,19 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GOOGLE_CALLBACK_URL: z
     .string()
-    .url()
     .optional()
-    .transform(
-      (v) =>
-        v ?? "https://intelmeet-ff4w.onrender.com/api/auth/google/callback"
-    ),
+    .transform((v) => {
+      const val = v?.trim();
+      if (!val) {
+        return "https://intelmeet-ff4w.onrender.com/api/auth/google/callback";
+      }
+      try {
+        new URL(val);
+        return val;
+      } catch {
+        return "https://intelmeet-ff4w.onrender.com/api/auth/google/callback";
+      }
+    }),
 
   // ── Cloudinary ────────────────────────────────────────────────────────────
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
