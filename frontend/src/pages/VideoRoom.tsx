@@ -758,22 +758,6 @@ export default function VideoRoom() {
             </svg>
             {formatDuration(meetingDuration)}
           </div>
-          <div className="flex items-center gap-2 text-slate-300 text-sm">
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 20h5v-2a3 3 0 00-5.856-1.487M15 10a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            {participants.length + 1}
-          </div>
         </div>
       </div>
       <div className="flex-1 flex overflow-hidden gap-4 p-4">
