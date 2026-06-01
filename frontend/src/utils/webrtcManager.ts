@@ -37,6 +37,8 @@ const DEFAULT_CONFIG: WebRTCConfig = {
   iceServers: getIceServers(),
 };
 
+console.log('⚡ [webrtc]: Initialized WebRTCManager with ICE servers:', DEFAULT_CONFIG.iceServers);
+
 export class WebRTCManager {
   private localStream: MediaStream | null = null;
   private cameraTrack: MediaStreamTrack | null = null;
