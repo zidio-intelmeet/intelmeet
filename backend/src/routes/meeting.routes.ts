@@ -9,7 +9,9 @@ import {
   startMeeting,
   endMeeting,
   joinMeeting,
+  uploadMeetingRecording,
 } from "../controllers/meeting.controller";
+import { uploadRecording } from "../middlewares/upload.middleware";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { apiRateLimiter } from "../middlewares/rate-limiter";
 
@@ -47,5 +49,8 @@ router.post("/:id/end", endMeeting);
 
 // POST /api/meetings/:id/join  — Join as participant
 router.post("/:id/join", joinMeeting);
+
+// POST /api/meetings/:id/recording — Upload meeting recording
+router.post("/:id/recording", uploadRecording.single("recording"), uploadMeetingRecording);
 
 export default router;

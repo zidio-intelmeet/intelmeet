@@ -1,4 +1,5 @@
 import express, { Express, Request, Response } from "express";
+import path from "path";
 import "dotenv/config";
 import cors from "cors";
 import helmet from "helmet";
@@ -86,6 +87,7 @@ app.use(
 
 app.use(cookieParser());
 app.use(morgan(process.env.NODE_ENV === "development" ? "dev" : "combined"));
+app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use(attachTenantContext);
 setupSwagger(app);

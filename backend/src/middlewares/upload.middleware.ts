@@ -44,3 +44,28 @@ export const uploadAvatar = multer({
     cb(null, true);
   },
 });
+
+// 4. Create local storage for video recordings
+import fs from "fs";
+import path from "path";
+
+const localDiskStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "../../uploads/recordings");
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `${req.params.id || 'meeting'}-${uniqueSuffix}${path.extname(file.originalname) || '.webm'}`);
+  }
+});
+
+export const uploadRecording = multer({
+  storage: localDiskStorage,
+  limits: {
+    fileSize: 100 * 1024 * 1024, // 100MB limit
+  }
+});

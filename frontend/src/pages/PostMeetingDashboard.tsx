@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiService, type MeetingData, type TranscriptData } from '../services/api';
 import { useMeetingStore } from '../stores/meetingStore';
+import { useAuthStore } from '../stores/authStore';
 import { format } from 'date-fns';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -235,6 +236,44 @@ export function PostMeetingDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>('summary');
   const [transcriptSearch, setTranscriptSearch] = useState('');
 
+  const storeRecordingBlob = useMeetingStore(state => state.recordingBlob);
+  const setStoreRecordingUrl = useMeetingStore(state => state.setRecordingUrl);
+  const setStoreRecordingBlob = useMeetingStore(state => state.setRecordingBlob);
+  const [uploadingRecording, setUploadingRecording] = useState(false);
+  const user = useAuthStore(state => state.user);
+  const isAdminOrHost = !!(user?.role === 'Admin' || (meeting && (typeof meeting.host === 'string' ? meeting.host === user?.id : meeting.host._id === user?.id)));
+
+  useEffect(() => {
+    if (!meetingId || !meeting || !storeRecordingBlob) return;
+
+    // Only upload if this user is host/admin OR if the meeting has no recording yet
+    const shouldUpload = isAdminOrHost || !meeting.recordingUrl;
+    if (!shouldUpload) {
+      setStoreRecordingBlob(null);
+      return;
+    }
+
+    const upload = async () => {
+      setUploadingRecording(true);
+      try {
+        console.log('📹 Uploading local recording to server...');
+        const res = await apiService.uploadMeetingRecording(meetingId, storeRecordingBlob);
+        const url = res.data?.recordingUrl;
+        if (url) {
+          console.log('✅ Recording uploaded successfully:', url);
+          setMeeting(prev => prev ? { ...prev, recordingUrl: url } : null);
+          setStoreRecordingUrl(url);
+        }
+      } catch (err) {
+        console.error('❌ Failed to upload recording:', err);
+      } finally {
+        setUploadingRecording(false);
+        setStoreRecordingBlob(null);
+      }
+    };
+    upload();
+  }, [meetingId, meeting, storeRecordingBlob, setStoreRecordingUrl, setStoreRecordingBlob, isAdminOrHost]);
+
   // ── Data fetching ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!meetingId) return;
@@ -376,6 +415,15 @@ export function PostMeetingDashboard() {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(180deg, #0a0f1e 0%, #0f172a 40%, #131c30 100%)' }}>
+      {uploadingRecording && (
+        <div className="bg-indigo-600/35 border-b border-indigo-500/30 text-white/90 px-4 py-2.5 text-center text-xs font-semibold tracking-wide backdrop-blur flex items-center justify-center gap-2 relative z-50">
+          <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Uploading meeting recording to the server... Please do not close this window.
+        </div>
+      )}
       {/* ── Mesh gradient decorations ──────────────────────────────────────── */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden>
         <div className="absolute -top-40 -right-40 w-[600px] h-[600px] rounded-full opacity-[0.07]" style={{ background: 'radial-gradient(circle, #6366f1 0%, transparent 70%)' }} />

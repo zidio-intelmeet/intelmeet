@@ -329,6 +329,14 @@ class ApiService {
   async startMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/start`, { method: 'POST' }); }
   async endMeeting(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/end`, { method: 'POST' }); }
   async joinMeetingAsParticipant(id: string) { return this.request<MeetingData>(`/api/meetings/${id}/join`, { method: 'POST' }); }
+  async uploadMeetingRecording(id: string, blob: Blob) {
+    const formData = new FormData();
+    formData.append("recording", blob, `recording-${id}.webm`);
+    return this.request<MeetingData>(`/api/meetings/${id}/recording`, {
+      method: "POST",
+      body: formData,
+    });
+  }
 
   // --- TASKS ---
   async createTask(data: { title: string; description?: string; priority?: string; assignee?: string; meetingId?: string; dueDate?: string }) { return this.request<TaskData>('/api/tasks', { method: 'POST', body: JSON.stringify(data) }); }

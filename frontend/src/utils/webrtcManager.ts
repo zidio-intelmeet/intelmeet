@@ -11,11 +11,30 @@ export interface WebRTCConfig {
   iceServers: RTCIceServer[];
 }
 
-const DEFAULT_CONFIG: WebRTCConfig = {
-  iceServers: [
+const getIceServers = (): RTCIceServer[] => {
+  const defaultServers: RTCIceServer[] = [
     { urls: ['stun:stun.l.google.com:19302'] },
     { urls: ['stun:stun1.l.google.com:19302'] },
-  ],
+    { urls: ['stun:stun2.l.google.com:19302'] },
+    { urls: ['stun:stun3.l.google.com:19302'] },
+    { urls: ['stun:stun4.l.google.com:19302'] },
+  ];
+
+  try {
+    const envIceServers = import.meta.env.VITE_ICE_SERVERS;
+    if (envIceServers) {
+      console.log('⚡ [webrtc]: Using custom ICE servers from environment');
+      return JSON.parse(envIceServers);
+    }
+  } catch (err) {
+    console.error('Failed to parse VITE_ICE_SERVERS:', err);
+  }
+
+  return defaultServers;
+};
+
+const DEFAULT_CONFIG: WebRTCConfig = {
+  iceServers: getIceServers(),
 };
 
 export class WebRTCManager {
@@ -181,9 +200,18 @@ export class WebRTCManager {
     };
 
     peerConnection.onconnectionstatechange = () => {
+      console.log(`⚡ [webrtc]: PeerConnection state for ${remoteSocketId} changed to: ${peerConnection.connectionState}`);
       if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
         this.closePeerConnection(remoteSocketId);
       }
+    };
+
+    peerConnection.oniceconnectionstatechange = () => {
+      console.log(`⚡ [webrtc]: ICE Connection state for ${remoteSocketId} changed to: ${peerConnection.iceConnectionState}`);
+    };
+
+    peerConnection.onicegatheringstatechange = () => {
+      console.log(`⚡ [webrtc]: ICE Gathering state for ${remoteSocketId} changed to: ${peerConnection.iceGatheringState}`);
     };
 
     this.peerConnections.set(remoteSocketId, peerConnection);

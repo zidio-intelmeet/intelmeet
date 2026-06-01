@@ -255,3 +255,26 @@ export const joinMeeting = AsyncHandler(async (req: Request, res: Response) => {
 
   return ApiResponse.ok(res, "Joined meeting successfully", populated);
 });
+
+// ─── UPLOAD MEETING RECORDING ─────────────────────────────────
+export const uploadMeetingRecording = AsyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const idStr = String(id);
+  
+  if (!req.file) {
+    throw ApiError.badRequest("No recording file uploaded");
+  }
+
+  const query = mongoose.Types.ObjectId.isValid(idStr) ? { _id: idStr } : { meetingId: idStr };
+  const meeting = await Meeting.findOne(query);
+  if (!meeting) {
+    throw ApiError.notFound("Meeting not found");
+  }
+
+  const host = req.get("host");
+  const protocol = req.protocol;
+  meeting.recordingUrl = `${protocol}://${host}/uploads/recordings/${req.file.filename}`;
+  await meeting.save();
+
+  return ApiResponse.ok(res, "Recording uploaded successfully", meeting);
+});
