@@ -48,8 +48,9 @@ export default function AuthSuccessPage() {
 
         if (!accessToken) {
           throw new Error(
-            'Could not get access token. Make sure GOOGLE_CALLBACK_URL in backend/.env ' +
-            'uses the same host as VITE_API_URL in frontend/.env (both should be localhost:3001).'
+            'Could not get access token. If running locally, make sure GOOGLE_CALLBACK_URL (backend) ' +
+            'and VITE_API_URL (frontend) use the same host. If deployed, ensure VITE_API_URL is set to ' +
+            'your deployed backend URL and the backend supports SameSite: None cookies.'
           );
         }
 
