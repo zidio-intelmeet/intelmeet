@@ -203,7 +203,7 @@ export class WebRTCManager {
 
     peerConnection.onconnectionstatechange = () => {
       console.log(`⚡ [webrtc]: PeerConnection state for ${remoteSocketId} changed to: ${peerConnection.connectionState}`);
-      if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'closed') {
+      if (peerConnection.connectionState === 'failed' || peerConnection.connectionState === 'closed') {
         this.closePeerConnection(remoteSocketId);
       }
     };
