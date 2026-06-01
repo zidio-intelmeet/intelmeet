@@ -1,5 +1,6 @@
 import express, { Express, Request, Response } from "express";
 import path from "path";
+import { fileURLToPath } from "url";
 import "dotenv/config";
 import cors from "cors";
 import helmet from "helmet";
@@ -26,6 +27,8 @@ import env from "./configs/env";
 import { logger } from "./utils/logger";
 
 const app: Express = express();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 🚀 SECURITY FIX: Gate trust proxy behind environment/config to prevent IP spoofing
 app.set("trust proxy", process.env.NODE_ENV === "production" ? 1 : false); 
