@@ -15,6 +15,14 @@
 
 ---
 
+## 🎬 Demo
+
+The application is deployed and available at:
+- **Frontend (Vercel):** [https://intelmeet-alpha.vercel.app/](https://intelmeet-alpha.vercel.app/)
+- **Backend (Render):** [https://intelmeet-ff4w.onrender.com](https://intelmeet-ff4w.onrender.com)
+
+---
+
 ## ✨ Features
 
 ### 🎥 Real-Time Video Meetings
@@ -177,8 +185,8 @@ docker-compose logs -f backend
 
 ### Option 1: Render + Vercel (Recommended)
 1. Push to GitHub
-2. Connect Render for backend (auto-deploys)
-3. Connect Vercel for frontend (auto-deploys)
+2. Connect Render for backend (auto-deploys): [https://intelmeet-ff4w.onrender.com](https://intelmeet-ff4w.onrender.com)
+3. Connect Vercel for frontend (auto-deploys): [https://intelmeet-alpha.vercel.app/](https://intelmeet-alpha.vercel.app/)
 
 ### Option 2: Docker (Self-Hosted)
 ```bash
