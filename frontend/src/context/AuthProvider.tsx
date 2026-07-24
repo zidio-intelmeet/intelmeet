@@ -25,6 +25,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Initialize auth on app startup - restore session from refresh token cookie
   useEffect(() => {
     checkAuth().catch(console.error);
+
+    // Silent background auto-refresh every 10 minutes to keep session alive and prevent db sleeps
+    const interval = setInterval(() => {
+      const { isAuthenticated, refreshTokens } = useAuthStore.getState();
+      if (isAuthenticated) {
+        refreshTokens().catch(console.error);
+      }
+    }, 10 * 60 * 1000);
+
+    return () => clearInterval(interval);
   }, [checkAuth]);
 
   // Provide auth context to all child components

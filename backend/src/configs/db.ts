@@ -22,7 +22,9 @@ export const syncApplicationIndexes = async (force = false) => {
 
 export const connectDB = async (): Promise<void> => {
   try {
-    const conn = await mongoose.connect(env.DATABASE_URL as string);
+    const conn = await mongoose.connect(env.DATABASE_URL as string, {
+      serverSelectionTimeoutMS: 5000,
+    });
     logger.info(`MongoDB Connected: ${conn.connection.host}`);
     await syncApplicationIndexes();
   } catch (error) {

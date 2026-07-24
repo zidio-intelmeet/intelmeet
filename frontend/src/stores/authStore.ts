@@ -333,3 +333,8 @@ window.addEventListener('storage', (event) => {
     } catch (e) { console.error("Failed to sync session storage", e); }
   }
 });
+
+// Register session expired callback to trigger automatic logout
+apiService.onSessionExpired = () => {
+  void useAuthStore.getState().logout();
+};

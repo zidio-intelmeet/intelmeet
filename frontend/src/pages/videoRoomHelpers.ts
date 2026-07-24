@@ -1,4 +1,4 @@
-﻿import type { MeetingData } from '../services/api';
+import type { MeetingData } from '../services/api';
 
 export const workspaceShortcuts = [
   { label: 'Dashboard', to: '/workspace',  icon: 'M3 11.5 12 4l9 7.5M5 10v9h5v-5h4v5h5v-9' },
@@ -30,12 +30,9 @@ export function clearActiveMeeting() {
 }
 
 export function getMeetingElapsedSeconds(meeting: MeetingData | null) {
-  if (!meeting) return 0;
+  if (!meeting || !meeting.actualStartTime) return 0;
 
-  const startSource = meeting.actualStartTime || meeting.scheduledStartTime || meeting.createdAt;
-  if (!startSource) return 0;
-
-  const startedAt = new Date(startSource).getTime();
+  const startedAt = new Date(meeting.actualStartTime).getTime();
   if (Number.isNaN(startedAt)) return 0;
 
   return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));

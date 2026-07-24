@@ -90,6 +90,7 @@ class ApiService {
   private accessToken: string | null = null;
   private tenantId: string | null = null;
   private refreshPromise: Promise<string | null> | null = null;
+  public onSessionExpired?: () => void;
 
   constructor() {
     this.baseUrl = API_URL;
@@ -167,10 +168,12 @@ class ApiService {
             return retryData;
           } else if (retryResponse.status === 401) {
             this.setAccessToken(null); 
+            if (this.onSessionExpired) this.onSessionExpired();
             throw new ApiError('Session expired. Please login again.', 401);
           }
         }
         this.setAccessToken(null); 
+        if (this.onSessionExpired) this.onSessionExpired();
         throw new ApiError('Session expired. Please login again.', 401);
       }
 

@@ -205,6 +205,13 @@ export const initializeSockets = (io: Server) => {
       socket.to(mentionedUserId).emit("notification:received", { type: "mention", message });
     });
 
+    socket.on("meeting:end", (data) => {
+      if (!data || !data.meetingId) return;
+      const { meetingId } = data;
+      socket.to(meetingId).emit("meeting:ended");
+      activeMeetings.delete(meetingId);
+    });
+
     // ==================== DISCONNECTION & LEAVE CLEANUP ====================
     socket.on("meeting:leave", (data) => {
       if (!data || !data.meetingId || !userId) return;

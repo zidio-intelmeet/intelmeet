@@ -68,6 +68,7 @@ export default function VideoRoom() {
     screen: true,
   });
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showLeaveOptions, setShowLeaveOptions] = useState(false);
   const [chatRecipientId, setChatRecipientId] = useState('Everyone');
   const isCompactMode = searchParams.get('compact') === '1';
   const calculatedParticipants = participants.map((p) => {
@@ -418,7 +419,7 @@ export default function VideoRoom() {
       console.error("Failed to refresh AI summary:", err);
     }
   }, [meetingId, buildTimestampedTranscript]);
-  const handleLeaveMeeting = useCallback(async () => {
+  const handleLeaveMeeting = useCallback(async (endForEveryone = false) => {
     try {
       if (meetingId) {
         emit('meeting:leave', { meetingId });
@@ -436,8 +437,9 @@ export default function VideoRoom() {
           useMeetingStore.getState().setRecordingBlob(blob);
         }
         
-        if (isAdminOrHost) {
+        if (isAdminOrHost && endForEveryone) {
           await apiService.endMeeting(meetingId);
+          emit('meeting:end', { meetingId });
           
           // Trigger AI features using timestamped transcript
           try {
@@ -449,7 +451,7 @@ export default function VideoRoom() {
             await apiService.analyzeSentiment(meetingId);
           } catch (aiErr) { console.error("AI Generation failed:", aiErr); }
         } else {
-          // Non-host: still save transcript locally
+          // Non-host or host just leaving: still save transcript locally
           const transcriptText = buildTimestampedTranscript();
           useMeetingStore.getState().setTranscript(transcriptText);
         }
@@ -531,67 +533,37 @@ export default function VideoRoom() {
     };
     const handleKicked = () => {
       alert("You have been removed from the meeting by the host.");
-      void handleLeaveMeeting();
+      void handleLeaveMeeting(false);
+    };
+    const handleMeetingEnded = () => {
+      alert("The host has ended this meeting for everyone.");
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+      }
+      webrtcManager.stopLocalStream();
+      webrtcManager.closeAllPeerConnections();
+      clearActiveMeeting();
+      navigate(`/dashboard/meetings/${meetingId}/review`);
     };
 
     const unsubPerms = on('meeting:permissions', handlePermissions);
     const unsubPermUpdated = on('meeting:room-permission-updated', handleRoomPermissionUpdated);
     const unsubDeviceControlled = on('meeting:device-controlled', handleDeviceControlled);
     const unsubKicked = on('meeting:kicked', handleKicked);
+    const unsubEnded = on('meeting:ended', handleMeetingEnded);
 
     return () => {
       unsubPerms();
       unsubPermUpdated();
       unsubDeviceControlled();
       unsubKicked();
+      unsubEnded();
     };
-  }, [socket, on, isScreenSharing, handleToggleScreenShare, handleLeaveMeeting, isAdminOrHost]);
+  }, [socket, on, isScreenSharing, handleToggleScreenShare, handleLeaveMeeting, isAdminOrHost, localStream, meetingId, navigate]);
 
-  const handleCompactEndMeeting = useCallback(async () => {
-    try {
-      if (meetingId) {
-        emit('meeting:leave', { meetingId });
-        
-        // Stop recording if active
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-          mediaRecorderRef.current.stop();
-        }
-        
-        // Build recording blob
-        if (recordedChunksRef.current.length > 0) {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          useMeetingStore.getState().setRecordingUrl(url);
-          useMeetingStore.getState().setRecordingBlob(blob);
-        }
-        
-        if (isAdminOrHost) {
-          await apiService.endMeeting(meetingId);
-          
-          try {
-            const transcriptText = buildTimestampedTranscript();
-            useMeetingStore.getState().setTranscript(transcriptText);
-            await apiService.submitTranscript(meetingId, transcriptText);
-            await apiService.generateSummary(meetingId);
-            await apiService.extractActionItems(meetingId);
-            await apiService.analyzeSentiment(meetingId);
-          } catch (aiErr) { console.error("AI Generation failed:", aiErr); }
-        } else {
-          // Non-host: still save transcript locally
-          const transcriptText = buildTimestampedTranscript();
-          useMeetingStore.getState().setTranscript(transcriptText);
-        }
-
-        clearActiveMeeting();
-      }
-      webrtcManager.stopLocalStream();
-      webrtcManager.closeAllPeerConnections();
-      navigate(`/dashboard/meetings/${meetingId}/review`);
-    } catch (err) {
-      console.error('Error ending compact meeting:', err);
-      navigate(`/dashboard/meetings/${meetingId}/review`);
-    }
-  }, [meetingId, emit, navigate, buildTimestampedTranscript, isAdminOrHost]);
+  const handleCompactEndMeeting = useCallback(async (endForEveryone = false) => {
+    await handleLeaveMeeting(endForEveryone);
+  }, [handleLeaveMeeting]);
   if (loading) {
     return (
       <div className="w-full h-screen bg-black flex items-center justify-center">
@@ -652,8 +624,12 @@ export default function VideoRoom() {
     );
   }
   const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   if (isCompactMode) {
@@ -667,7 +643,7 @@ export default function VideoRoom() {
             </div>
             <button
               type="button"
-              onClick={() => { void handleCompactEndMeeting(); }}
+              onClick={isAdminOrHost ? () => setShowLeaveOptions(true) : () => { void handleCompactEndMeeting(false); }}
               className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-bold text-red-300 transition hover:bg-red-500/20 hover:text-red-200"
             >
               End
@@ -716,7 +692,7 @@ export default function VideoRoom() {
             onToggleMic={handleToggleMic}
             onToggleCamera={handleToggleCamera}
             onToggleScreenShare={handleToggleScreenShare}
-            onLeave={() => { void handleCompactEndMeeting(); }}
+            onLeave={isAdminOrHost ? () => setShowLeaveOptions(true) : () => { void handleCompactEndMeeting(false); }}
             onToggleChat={() => setShowChat(!showChat)}
             onToggleAI={() => { setShowAIPanel(!showAIPanel); if (!showAIPanel) refreshAISummary(); }}
             onShareLink={() => setShowShareModal(true)}
@@ -882,7 +858,7 @@ export default function VideoRoom() {
           onToggleMic={handleToggleMic}
           onToggleCamera={handleToggleCamera}
           onToggleScreenShare={handleToggleScreenShare}
-          onLeave={handleLeaveMeeting}
+          onLeave={isAdminOrHost ? () => setShowLeaveOptions(true) : () => { void handleLeaveMeeting(false); }}
           onToggleChat={() => setShowChat(!showChat)}
           onToggleParticipants={() => setShowParticipants(!showParticipants)}
           onToggleAdmin={isAdminOrHost ? () => setShowAdminControls(!showAdminControls) : undefined}
@@ -905,6 +881,42 @@ export default function VideoRoom() {
           meetingId={meeting._id || ''}
           onClose={() => setShowShareModal(false)}
         />
+      )}
+      {showLeaveOptions && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-lg font-bold text-white mb-2">Leave or End Meeting?</h3>
+            <p className="text-slate-400 text-sm mb-6 font-normal">
+              As the host, you can end this meeting for all participants, or just leave the meeting yourself.
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => {
+                  setShowLeaveOptions(false);
+                  void handleLeaveMeeting(true);
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                End Meeting for Everyone
+              </button>
+              <button
+                onClick={() => {
+                  setShowLeaveOptions(false);
+                  void handleLeaveMeeting(false);
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+              >
+                Just Leave Meeting
+              </button>
+              <button
+                onClick={() => setShowLeaveOptions(false)}
+                className="w-full py-3 px-4 rounded-xl bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white font-semibold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
